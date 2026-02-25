@@ -2,12 +2,14 @@ find_package(GTest 1.10 REQUIRED NO_MODULE)
 
 add_executable(projectMSDL-cli-test
     HelpOptionTest.cpp
+    ConfigPrecedenceTest.cpp
 )
 
 target_link_libraries(projectMSDL-cli-test
     PRIVATE
     GTest::gtest_main
     Poco::Foundation
+    projectMSDL_testcorelib
 )
 
 # Ensure the app is built before the test runs
