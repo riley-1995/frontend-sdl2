@@ -4,21 +4,6 @@
 # duplicating source lists and dependancies.)
 # ======
 
-# Ensure OpenGL is found on all platforms; prefer imported targets if present.
-find_package(OpenGL REQUIRED)
-
-if (TARGET OpenGL::GL)
-    set(_OPENGL_TARGET OpenGL::GL)
-elseif (TARGET OpenGL::OpenGL)
-    # On some CMake / Apple setups the imported target may be named OpenGL::OpenGL
-    set(_OPENGL_TARGET OpenGL::OpenGL)
-elseif(DEFINED OPENGL_LIBRARIES)
-    # Fallback to legacy variables provided by find_package(OpenGL)
-    set(_OPENGL_FALLBACK_LIBS ${OPENGL_LIBRARIES})
-else()
-    message(FATAL_ERROR "OpenGL not found. Install platform OpenGL dev packages (e.g. libgl1-mesa-dev on Linux).")
-endif()
-
 # Build a core library from production sources to test on
 add_library(projectMSDL_testcorelib
     # Add .cpp files as needed for testing
@@ -35,7 +20,6 @@ add_library(projectMSDL_testcorelib
     ${PROJECT_SOURCE_DIR}/src/AudioCapture.cpp
 )
 
-# Ensure Audio req's are found on all platforms
 if (WIN32)
     target_sources(projectMSDL_testcorelib PRIVATE
         ${PROJECT_SOURCE_DIR}/src/AudioCaptureImpl_WASAPI.cpp
@@ -76,14 +60,6 @@ target_link_libraries(projectMSDL_testcorelib
     ProjectMSDL-Notifications
     libprojectM::playlist
 )
-
-# Link OpenGL (prefer imported target; fallback to OPENGL_LIBRARIES)
-if (DEFINED _OPENGL_TARGET)
-    target_link_libraries(projectMSDL_testcorelib PRIVATE ${_OPENGL_TARGET})
-elseif (DEFINED _OPENGL_FALLBACK_LIBS)
-    target_link_libraries(projectMSDL_testcorelib PRIVATE ${_OPENGL_FALLBACK_LIBS})
-endif()
-
 
 # ======
 # Test-only core library WITHOUT RenderLoop
@@ -144,12 +120,6 @@ target_link_libraries(projectMSDL_testcorelib_norenderloop
     ProjectMSDL-Notifications
     libprojectM::playlist
 )
-
-if (DEFINED _OPENGL_TARGET)
-    target_link_libraries(projectMSDL_testcorelib_norenderloop PRIVATE ${_OPENGL_TARGET})
-elseif (DEFINED _OPENGL_FALLBACK_LIBS)
-    target_link_libraries(projectMSDL_testcorelib_norenderloop PRIVATE ${_OPENGL_FALLBACK_LIBS})
-endif()
 
 # ======
 # Actual test subdirs 
