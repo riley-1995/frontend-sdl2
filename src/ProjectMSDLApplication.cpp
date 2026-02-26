@@ -48,7 +48,7 @@ Poco::AutoPtr<Poco::Util::MapConfiguration> ProjectMSDLApplication::CommandLineC
     return _commandLineOverrides;
 }
 
-void ProjectMSDLApplication::initialize(Poco::Util::Application& self)
+void ProjectMSDLApplication::LoadConfigurationLayers()
 {
     // Application settings are PRIO_APPLICATION, higher values have lower precedence.
     // So we put command-line overrides just below settings changed in the UI.
@@ -106,8 +106,74 @@ void ProjectMSDLApplication::initialize(Poco::Util::Application& self)
         poco_error_f1(logger(), "Failed to load/create user configuration file: %s", ex.displayText());
     }
 
+}
+
+void ProjectMSDLApplication::initialize(Poco::Util::Application& self)
+{
+    LoadConfigurationLayers();
     Application::initialize(self);
 }
+
+// void ProjectMSDLApplication::initialize(Poco::Util::Application& self)
+// {
+//     // Application settings are PRIO_APPLICATION, higher values have lower precedence.
+//     // So we put command-line overrides just below settings changed in the UI.
+//     config().add(_commandLineOverrides, PRIO_APPLICATION + 10);
+
+//     std::string configFileName = config().getString("application.baseName") + ".properties";
+//     Poco::Path userConfigurationDir = Poco::Path::configHome();
+//     userConfigurationDir.makeDirectory().append("projectM/");
+
+//     try
+//     {
+//         if (loadConfiguration(PRIO_DEFAULT) == 0)
+//         {
+//             // The file may be located in the ../Resources bundle dir on macOS, elsewhere relative
+//             // to the executable or within an absolute path.
+//             // By setting and retrieving the compiled-in default, we can make use of POCO's variable replacement.
+//             // This allows using ${application.dir} etc. in the path.
+//             config().setString("application.defaultConfigurationFile", PROJECTMSDL_CONFIG_LOCATION);
+//             std::string configPath = config().getString("application.defaultConfigurationFile", "");
+//             if (!configPath.empty())
+//             {
+//                 Poco::Path configFilePath(configPath);
+//                 configFilePath.makeDirectory().setFileName(configFileName);
+//                 poco_information_f1(logger(), "Trying to load configuration from %s.", configFilePath.toString());
+//                 if (Poco::File(configFilePath).exists())
+//                 {
+//                     loadConfiguration(configFilePath.toString(), PRIO_DEFAULT);
+//                 }
+//             }
+//         }
+//     }
+//     catch (Poco::Exception& ex)
+//     {
+//         poco_error_f1(logger(), "Failed to load default configuration file: %s", ex.displayText());
+//     }
+
+//     // Try to load user's custom configuration file.
+//     Poco::Path userConfigurationFile = userConfigurationDir;
+//     userConfigurationFile.setFileName(configFileName);
+//     try
+//     {
+//         if (!Poco::File(userConfigurationFile).exists())
+//         {
+//             Poco::File(userConfigurationDir).createDirectories();
+//             Poco::File(userConfigurationFile).createFile();
+//         }
+//         _userConfiguration->load(userConfigurationFile.toString());
+//         config().add(_userConfiguration, PRIO_DEFAULT - 10);
+
+//         // Store the configuration file path
+//         _commandLineOverrides->setString("app.UserConfigurationFile", userConfigurationFile.toString());
+//     }
+//     catch (Poco::Exception& ex)
+//     {
+//         poco_error_f1(logger(), "Failed to load/create user configuration file: %s", ex.displayText());
+//     }
+
+//     Application::initialize(self);
+// }
 
 void ProjectMSDLApplication::uninitialize()
 {

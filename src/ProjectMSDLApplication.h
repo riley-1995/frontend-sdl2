@@ -30,6 +30,8 @@ public:
     Poco::AutoPtr<Poco::Util::MapConfiguration> CommandLineConfiguration();
 
 protected:
+    void LoadConfigurationLayers();
+    
     void initialize(Application& self) override;
 
     void uninitialize() override;

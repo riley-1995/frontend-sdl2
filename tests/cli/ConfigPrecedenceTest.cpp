@@ -20,6 +20,10 @@ static void write(const std::string &path, const std::string &s)
     os << s;
 }
 
+class TestApp : public ProjectMSDLApplication {
+public:
+    using ProjectMSDLApplication::LoadConfigurationLayers;
+};
 
 TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
 {
@@ -63,7 +67,8 @@ TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
     Poco::File(cliTextures).createDirectories();
 
     // Call ProjectMSDLApplication::init() with CLI flags
-    ProjectMSDLApplication app;
+    // ProjectMSDLApplication app;
+    TestApp app;
 
     std::vector<std::string> args = { argv0, "--presetPath", cliPresets, "--texturePath", cliTextures };
     
@@ -74,6 +79,12 @@ TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
     argv.push_back(nullptr);
 
     ASSERT_NO_THROW(app.init(static_cast<int>(args.size()), argv.data()));
+    app.LoadConfigurationLayers(); // loads installed + user configs and merges with CLI overrides
+
+    ASSERT_TRUE(app.config().hasProperty("projectM.presetPath"));
+    EXPECT_EQ(app.config().getString("projectM.presetPath"), cliPresets);
+    ASSERT_TRUE(app.config().hasProperty("projectM.texturePath"));
+    EXPECT_EQ(app.config().getString("projectM.texturePath"), cliTextures);
 
     // Assertions we can make without changing the product code:
     // Both config files exist
