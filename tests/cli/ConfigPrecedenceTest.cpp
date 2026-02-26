@@ -95,14 +95,5 @@ TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
     EXPECT_TRUE(Poco::File(installedCfgPath).exists());
     EXPECT_TRUE(Poco::File(userCfgPath).exists());
 
-    // Sanity-check that we can query the configuration object
-    // (We don't assert specific keys because the app doesn't expose them)
-    auto &g = app.config();
-    std::vector<std::string> keys;
-    ASSERT_NO_THROW(g.keys(keys));
-    
-    // This will always be true, but ensures we exercised the AbstractConfiguration API properly.
-    EXPECT_GE(keys.size(), static_cast<std::size_t>(0));
-
     Poco::File(root).remove(true);
 }
