@@ -11,7 +11,6 @@ target_link_libraries(projectMSDL-ui-test
     PRIVATE
     projectMSDL_testcorelib_norenderloop
     ProjectMSDL-GUI
-    GTest::gtest
     GTest::gtest_main
 )
 

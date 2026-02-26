@@ -22,9 +22,8 @@
 
 namespace {
 
-    // In CI it’s common to have no display server on Linux.
-    // Setting a dummy video driver allows SDL_Init to succeed.
-    // Note: this may not support real GL contexts, but it’s helpful for event-path tests.
+    // In CI it’s common to have no display server on Linux
+    // Setting a dummy video driver allows SDL_Init to succeed
     void ConfigureHeadlessIfNeeded()
     {
     #if defined(__linux__)
@@ -51,20 +50,19 @@ namespace {
         SDL_PushEvent(&e);
     }
 
-    // Warp the OS cursor into the target window. This improves reliability vs. only pushing motion events.
+    // Warp the OS cursor into the target window
     void WarpMouse(SDL_Window* w, int x, int y)
     {
         if (w)
             SDL_WarpMouseInWindow(w, x, y);
     }
 
-    // For SDL -> ImGui input paths, setting windowID is important on Windows.
-    // Many backends ignore mouse events that don’t match the active window.
     void PushMouseMove(SDL_Window* w, int x, int y)
     {
+        if (!w) return;
         SDL_Event e{};
         e.type = SDL_MOUSEMOTION;
-        e.motion.windowID = w ? SDL_GetWindowID(w) : 0;
+        e.motion.windowID = SDL_GetWindowID(w);
         e.motion.which = 0;
         e.motion.x = x;
         e.motion.y = y;
@@ -75,9 +73,10 @@ namespace {
 
     void PushMouseDown(SDL_Window* w, int x, int y)
     {
+        if (!w) return;
         SDL_Event e{};
         e.type = SDL_MOUSEBUTTONDOWN;
-        e.button.windowID = w ? SDL_GetWindowID(w) : 0;
+        e.button.windowID = SDL_GetWindowID(w);
         e.button.which = 0;
         e.button.button = SDL_BUTTON_LEFT;
         e.button.state = SDL_PRESSED;
@@ -89,9 +88,10 @@ namespace {
 
     void PushMouseUp(SDL_Window* w, int x, int y)
     {
+        if (!w) return;
         SDL_Event e{};
         e.type = SDL_MOUSEBUTTONUP;
-        e.button.windowID = w ? SDL_GetWindowID(w) : 0;
+        e.button.windowID = SDL_GetWindowID(w);
         e.button.which = 0;
         e.button.button = SDL_BUTTON_LEFT;
         e.button.state = SDL_RELEASED;
@@ -113,29 +113,22 @@ namespace {
 
     static UITestState g_state;
 
-    // Strong “user perspective” signal that a menu dropdown opened:
-    // any ImGui popup at all (avoids brittle label/ID assumptions).
+    // Strong “user perspective” signal that a menu dropdown opened
+    // Guarded by ImGui context checks in the caller
     bool IsAnyPopupOpen()
     {
         return ImGui::IsPopupOpen((ImGuiID)0, ImGuiPopupFlags_AnyPopupId);
     }
 
-    // Optional stronger signal: known window created by a menu action.
+    // Optional stronger signal: known window created by a menu action
     bool IsSettingsWindowVisible()
     {
-        // Window name used by this app’s Settings UI.
         ImGuiWindow* w = ImGui::FindWindowByName("Settings###Settings");
         return w != nullptr && !w->Hidden;
     }
 
 } // namespace
 
-// ============================================================
-// Test-only RenderLoop implementation
-//
-// This file is compiled into the UI test binary and linked against the
-// *_norenderloop test core lib, so the test provides RenderLoop::Run().
-// ============================================================
 
 RenderLoop::RenderLoop()
     : _audioCapture(Poco::Util::Application::instance().getSubsystem<AudioCapture>())
@@ -153,20 +146,19 @@ void RenderLoop::Run()
     // Bounded loop ensures the test cannot hang indefinitely.
     constexpr int kMaxFrames = 360;
 
-    // Stable-ish coordinates for menu bar + first dropdown item (800x600 window).
-    // If DPI/layout changes, adjust these or add a small y-sweep.
+    // Stable-ish coordinates for menu bar + first dropdown item (800x600 window)
     const int fileX = 30;
     const int fileY = 12;
     const int itemX = 60;
     const int itemY = 50;
 
-    SDL_Window* win = _sdlRenderingWindow.GetRenderingWindow();
-    if (win)
-        SDL_RaiseWindow(win);
+    // Small initialization window: wait up to this many frames for window + ImGui context to appear.
+    constexpr int kInitGraceFrames = 100;
+    int initFrames = 0;
 
     _sdlRenderingWindow.ShowCursor(true);
 
-    // Ensure overlay is visible from a user’s perspective (press ESC if needed).
+    // Ensure overlay is visible from a user’s perspective (safe to push early; will be processed once ready).
     if (!_projectMGui.Visible())
         PushKey(SDLK_ESCAPE);
 
@@ -175,16 +167,21 @@ void RenderLoop::Run()
         SDL_Event e;
         while (SDL_PollEvent(&e))
         {
-            // Some overlay toggling is handled in production RenderLoop::KeyEvent.
-            // Our test harness must emulate that behavior for ESC (but avoid double toggles).
-            const bool wasVisible = _projectMGui.Visible();
-
+            // Process input if GUI subsystem is initialized
             _projectMGui.ProcessInput(e);
 
+            // Emulate production ESC toggle behavior if ProcessInput didn't change visibility
             if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
             {
                 const bool nowVisible = _projectMGui.Visible();
-                if (nowVisible == wasVisible)
+                // If ProcessInput didn't change overlay, toggle it
+                static_cast<void>(nowVisible); // keep compiler quiet if needed
+                // Compare with stored observed state instead of wasVisible to be robust
+                if (!g_state.overlayVisibleObserved && _projectMGui.Visible())
+                {
+                    g_state.overlayVisibleObserved = true;
+                }
+                else if (!g_state.overlayVisibleObserved && ! _projectMGui.Visible())
                 {
                     _projectMGui.Toggle();
                     _sdlRenderingWindow.ShowCursor(_projectMGui.Visible());
@@ -195,11 +192,35 @@ void RenderLoop::Run()
         _projectMGui.Draw();
         _sdlRenderingWindow.Swap();
 
+        // Refresh window handle each frame (window may be created after loop begins)
+        SDL_Window* win = _sdlRenderingWindow.GetRenderingWindow();
+        if (win)
+            SDL_RaiseWindow(win);
+
+        // If GUI overlay is visible at any point, mark it.
         if (_projectMGui.Visible())
             g_state.overlayVisibleObserved = true;
 
-        // Drive a simple “user flow”: click File, then click first item.
-        // Mouse down/up are separated across frames for better ImGui reliability.
+        // Wait for both SDL window and ImGui context before attempting clicks.
+        bool imguiReady = (ImGui::GetCurrentContext() != nullptr);
+        bool windowReady = (win != nullptr);
+
+        if (!imguiReady || !windowReady)
+        {
+            ++initFrames;
+            // If initialization never happens within the grace period, bail out early (fail cleanly).
+            if (initFrames > kInitGraceFrames)
+            {
+                // Let assertions after app.run() catch the failure; just break the loop to exit the app.
+                break;
+            }
+
+            // Continue to next frame until both are ready.
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
+        }
+
+        // Click File, then click first item
         if (g_state.overlayVisibleObserved && win)
         {
             // Attempt 1
@@ -211,19 +232,21 @@ void RenderLoop::Run()
             if (frame == 51) { PushMouseDown(win, itemX, itemY); }
             if (frame == 52) { PushMouseUp(win, itemX, itemY); }
 
-            // Attempt 2 (slight Y offset for DPI/menu-bar variance)
+            // Attempt 2
             if (!g_state.anyPopupOpened && frame == 120) { ++g_state.attempts; SDL_RaiseWindow(win); WarpMouse(win, fileX, fileY + 8); PushMouseMove(win, fileX, fileY + 8); }
             if (!g_state.anyPopupOpened && frame == 121) { PushMouseDown(win, fileX, fileY + 8); }
             if (!g_state.anyPopupOpened && frame == 122) { PushMouseUp(win, fileX, fileY + 8); }
         }
 
-        // Deterministic check #1: did a menu/popup open at all?
-        if (!g_state.anyPopupOpened && g_state.overlayVisibleObserved)
-            g_state.anyPopupOpened = IsAnyPopupOpen();
+        // Safe ImGui checks only when context exists.
+        if (ImGui::GetCurrentContext())
+        {
+            if (!g_state.anyPopupOpened && g_state.overlayVisibleObserved)
+                g_state.anyPopupOpened = IsAnyPopupOpen();
 
-        // Deterministic check #2: did a known window appear as a result of menu interaction?
-        if (!g_state.settingsWindowVisible && g_state.anyPopupOpened)
-            g_state.settingsWindowVisible = IsSettingsWindowVisible();
+            if (!g_state.settingsWindowVisible && g_state.anyPopupOpened)
+                g_state.settingsWindowVisible = IsSettingsWindowVisible();
+        }
 
         if (g_state.settingsWindowVisible)
             g_state.finished = true;
@@ -232,7 +255,7 @@ void RenderLoop::Run()
     }
 }
 
-// Unused RenderLoop methods for this test harness.
+// Unused RenderLoop methods for this test harness
 void RenderLoop::PollEvents() {}
 void RenderLoop::CheckViewportSize() {}
 void RenderLoop::KeyEvent(const SDL_KeyboardEvent&, bool) {}
@@ -241,10 +264,6 @@ void RenderLoop::MouseDownEvent(const SDL_MouseButtonEvent&) {}
 void RenderLoop::MouseUpEvent(const SDL_MouseButtonEvent&) {}
 void RenderLoop::QuitNotificationHandler(const Poco::AutoPtr<QuitNotification>&) {}
 
-
-// ============================================================
-// The actual UI test (end-to-end from the app entrypoint).
-// ============================================================
 
 TEST(SDLUiE2E, Overlay_FileMenu_OpensDropdown_AndIsInteractable)
 {
@@ -258,7 +277,6 @@ TEST(SDLUiE2E, Overlay_FileMenu_OpensDropdown_AndIsInteractable)
         "--height=600",
         "--left=0",
         "--top=0",
-        // "--testMode"  // include only if already supported by the app
     };
 
     std::vector<char*> argv;
@@ -274,13 +292,7 @@ TEST(SDLUiE2E, Overlay_FileMenu_OpensDropdown_AndIsInteractable)
     });
 
     EXPECT_EQ(rc, EXIT_SUCCESS) << "App exited unexpectedly (crash/abort).";
-
-    EXPECT_TRUE(g_state.overlayVisibleObserved)
-        << "Overlay was never observed visible (ESC toggle may have failed).";
-
-    EXPECT_TRUE(g_state.anyPopupOpened)
-        << "No ImGui popup opened after clicking the menu bar (attempts=" << g_state.attempts << ").";
-
-    EXPECT_TRUE(g_state.settingsWindowVisible)
-        << "Menu interaction did not open the expected Settings window (UI may not be interactable).";
+    EXPECT_TRUE(g_state.overlayVisibleObserved) << "Overlay was never observed visible (ESC toggle may have failed).";
+    EXPECT_TRUE(g_state.anyPopupOpened) << "No ImGui popup opened after clicking the menu bar (attempts=" << g_state.attempts << ").";
+    EXPECT_TRUE(g_state.settingsWindowVisible) << "Menu interaction did not open the expected Settings window (UI may not be interactable).";
 }
