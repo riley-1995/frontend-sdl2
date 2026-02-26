@@ -45,8 +45,8 @@ target_include_directories(projectMSDL_testcorelib
 
 # Compile definitions that are commonly referenced
 target_compile_definitions(projectMSDL_testcorelib
-    PRIVATE
-    PROJECTMSDL_CONFIG_LOCATION="${DEFAULT_CONFIG_PATH}"
+    PUBLIC
+    PROJECTMSDL_CONFIG_LOCATION="${CMAKE_CURRENT_BINARY_DIR}/testdata/default-config"
     PROJECTMSDL_VERSION="${PROJECT_VERSION}"
 )
 
