@@ -4,6 +4,7 @@
 #include <Poco/Environment.h>
 #include <Poco/File.h>
 #include <Poco/Path.h>
+#include <Poco/Process.h>
 
 #include <fstream>
 #include <vector>
@@ -28,7 +29,10 @@ public:
 TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
 {
     // Create a temporary root directory for the test
-    auto root = Poco::Path(Poco::Path::temp()).append("projectmsdl-it").toString();
+    // auto root = Poco::Path(Poco::Path::temp()).append("projectmsdl-it").toString();
+    auto root = Poco::Path(Poco::Path::temp())
+                .append("projectmsdl-it-" + std::to_string(Poco::Process::id()))
+                .toString();
     Poco::File(root).createDirectories();
 
     // Redirect the platform config directory into our temp location
@@ -99,4 +103,6 @@ TEST(ConfigPrecedenceIntegration, Minimal_CreatesConfigsAndAcceptsCli)
     
     // This will always be true, but ensures we exercised the AbstractConfiguration API properly.
     EXPECT_GE(keys.size(), static_cast<std::size_t>(0));
+
+    Poco::File(root).remove(true);
 }
