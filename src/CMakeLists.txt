@@ -1,6 +1,8 @@
 add_subdirectory(notifications)
 add_subdirectory(gui)
 
+find_package(OpenGL REQUIRED)
+
 set(PROJECTM_CONFIGURATION_FILE "${CMAKE_CURRENT_BINARY_DIR}/projectMSDL.properties")
 set(PROJECTM_CONFIGURATION_FILE "${PROJECTM_CONFIGURATION_FILE}" PARENT_SCOPE)
 configure_file(resources/projectMSDL.properties.in "${PROJECTM_CONFIGURATION_FILE}" @ONLY)
@@ -81,6 +83,14 @@ target_link_libraries(projectMSDL
         SDL2::SDL2$<$<STREQUAL:${SDL2_LINKAGE},static>:-static>
         SDL2::SDL2main
         )
+
+if (TARGET OpenGL::GL)
+    target_link_libraries(projectMSDL PRIVATE OpenGL::GL)
+elseif (TARGET OpenGL::OpenGL)
+    target_link_libraries(projectMSDL PRIVATE OpenGL::OpenGL)
+else()
+    message(FATAL_ERROR "No OpenGL CMake target found.")
+endif()
 
 if (MSVC)
     set_target_properties(projectMSDL

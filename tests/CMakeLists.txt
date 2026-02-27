@@ -1,3 +1,5 @@
+# tests/CMakeLists.txt
+
 # ======
 # Test-only core library
 # (Eventually this should be moved into src/CMakeLists.txt to avoid
@@ -129,3 +131,4 @@ target_link_libraries(projectMSDL_testcorelib_norenderloop
 add_subdirectory(renderer)
 add_subdirectory(audio)
 add_subdirectory(cli)
+add_subdirectory(ui)
