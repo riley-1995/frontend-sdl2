@@ -9,7 +9,7 @@ add_executable(projectMSDL-ui-test
 # Call required libraries; testcore, gtest
 target_link_libraries(projectMSDL-ui-test
     PRIVATE
-    projectMSDL_testcorelib_norenderloop
+    projectMSDL_testcorelib
     ProjectMSDL-GUI
     GTest::gtest_main
 )
