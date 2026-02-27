@@ -1,3 +1,5 @@
+// tests/ui/EscOverlayToggleTest.cpp
+
 #include <gtest/gtest.h>
 
 #include "ProjectMSDLApplication.h"
@@ -7,10 +9,8 @@
 #include "gui/ProjectMGUI.h"
 
 #include <SDL2/SDL.h>
-
 #include <imgui.h>
 #include <imgui_internal.h>
-
 #include <cstdlib>
 #include <chrono>
 #include <thread>
@@ -40,22 +40,13 @@ public:
     bool WantsToQuitPublic() const { return _wantsToQuit; }
 };
 
-static void PumpOnce(ProjectMGUI& gui, RenderLoopTestHarness& loop)
+void PumpOnce(ProjectMGUI& gui, RenderLoopTestHarness& loop)
 {
     loop.PollEventsPublic();
     gui.Draw();
 }
 
-static void PumpN(ProjectMGUI& gui, RenderLoopTestHarness& loop, int frames)
-{
-    for (int i = 0; i < frames; ++i)
-    {
-        PumpOnce(gui, loop);
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-}
-
-static void PushEscPress(SDL_Window* w)
+void PushEscPress(SDL_Window* w)
 {
     const Uint32 wid = w ? SDL_GetWindowID(w) : 0;
 
@@ -82,7 +73,7 @@ static void PushEscPress(SDL_Window* w)
     ASSERT_EQ(SDL_PushEvent(&e), 1);
 }
 
-static void PushClick(SDL_Window* w, int x, int y)
+void PushBackgroundClick(SDL_Window* w, int x, int y)
 {
     if (!w) return;
     const Uint32 wid = SDL_GetWindowID(w);
@@ -120,31 +111,19 @@ static void PushClick(SDL_Window* w, int x, int y)
     SDL_PushEvent(&e);
 }
 
-static bool WaitForImGuiReady(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
+bool WaitForImGuiReady(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
 {
     for (int i = 0; i < maxFrames; ++i)
     {
         PumpOnce(gui, loop);
-        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetMainViewport() != nullptr)
+        if (ImGui::GetCurrentContext() != nullptr)
             return true;
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     return false;
 }
 
-static bool WaitForOverlayVisible(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
-{
-    for (int i = 0; i < maxFrames; ++i)
-    {
-        PumpOnce(gui, loop);
-        if (gui.Visible())
-            return true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return false;
-}
-
-static bool WaitForImGuiNotCapturingMouse(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
+bool WaitForImGuiNotCapturingKeyboard(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
 {
     for (int i = 0; i < maxFrames; ++i)
     {
@@ -157,107 +136,17 @@ static bool WaitForImGuiNotCapturingMouse(ProjectMGUI& gui, RenderLoopTestHarnes
         }
 
         const ImGuiIO& io = ImGui::GetIO();
-        if (!io.WantCaptureMouse)
+        if (!io.WantCaptureKeyboard)
             return true;
 
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
     return false;
-}
-
-static bool IsAnyPopupOpen()
-{
-    if (ImGui::GetCurrentContext() == nullptr) return false;
-    return ImGui::IsPopupOpen((ImGuiID)0, ImGuiPopupFlags_AnyPopupId);
-}
-
-static bool WaitForAnyPopupOpen(ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxFrames)
-{
-    for (int i = 0; i < maxFrames; ++i)
-    {
-        PumpOnce(gui, loop);
-        if (IsAnyPopupOpen())
-            return true;
-        std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    return false;
-}
-
-static bool ImGuiReady()
-{
-    return ImGui::GetCurrentContext() != nullptr && ImGui::GetMainViewport() != nullptr;
-}
-
-// Sweep clicks across the menubar band (DPI/theme aware) until a popup opens
-static bool ClickMenubarSweepUntilPopup(SDL_Window* sdlWin, ProjectMGUI& gui, RenderLoopTestHarness& loop, int maxSweeps = 2)
-{
-    if (!ImGuiReady()) return false;
-
-    const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float frameH = ImGui::GetFrameHeight(); // DPI-aware
-    const float y = vp->Pos.y + frameH * 0.5f;    // within menubar band
-
-    const float left = vp->Pos.x + 8.0f;
-    const float right = vp->Pos.x + vp->Size.x - 8.0f;
-
-    const ImGuiStyle& st = ImGui::GetStyle();
-    const float approxBtn = ImGui::CalcTextSize("File").x + st.FramePadding.x * 6.0f;
-    const float step = (approxBtn > 30.0f ? approxBtn : 45.0f);
-
-    for (int sweep = 0; sweep < maxSweeps; ++sweep)
-    {
-        for (float x = left; x < right; x += step)
-        {
-            // Let ImGui settle on hover/focus state
-            (void)WaitForImGuiNotCapturingMouse(gui, loop, 10);
-
-            PushClick(sdlWin, (int)x, (int)y);
-
-            // Give it a few frames to open the popup
-            if (WaitForAnyPopupOpen(gui, loop, 12))
-                return true;
-        }
-    }
-    return false;
-}
-
-// Fetch the top open popup window (ImGui internal).
-static ImGuiWindow* GetTopOpenPopupWindow()
-{
-    ImGuiContext* ctx = ImGui::GetCurrentContext();
-    if (!ctx) return nullptr;
-
-    for (int i = (int)ctx->OpenPopupStack.Size - 1; i >= 0; --i)
-    {
-        ImGuiPopupData& pd = ctx->OpenPopupStack[i];
-        if (pd.Window)
-            return pd.Window;
-    }
-    return nullptr;
-}
-
-// Click inside the currently open popup window at a given row index, using ImGui metrics.
-static bool ClickPopupRow(SDL_Window* sdlWin, ProjectMGUI& gui, RenderLoopTestHarness& loop, int rowIndex)
-{
-    if (!ImGuiReady()) return false;
-
-    ImGuiWindow* pw = GetTopOpenPopupWindow();
-    if (!pw) return false;
-
-    const ImGuiStyle& st = ImGui::GetStyle();
-    const float rowH = ImGui::GetTextLineHeightWithSpacing();
-
-    const float x = pw->Pos.x + st.WindowPadding.x + 12.0f;
-    const float y = pw->Pos.y + st.WindowPadding.y + rowH * (rowIndex + 0.5f);
-
-    PushClick(sdlWin, (int)x, (int)y);
-    PumpN(gui, loop, 8);
-    return true;
 }
 
 } // namespace
 
-TEST(SDLE2E, MainMenu_PopupOpens_AndIsInteractable_NoExactCoordinates)
+TEST(UIToggleOverlayTest, EscTogglesOverlayVisibilityOncePerPress)
 {
 #if !defined(_WIN32)
     ConfigureHeadlessIfNeeded();
@@ -283,30 +172,40 @@ TEST(SDLE2E, MainMenu_PopupOpens_AndIsInteractable_NoExactCoordinates)
 
     RenderLoopTestHarness loop;
 
-    ASSERT_TRUE(WaitForImGuiReady(gui, loop, 180))
-        << "ImGui context never became ready.";
+    ASSERT_TRUE(WaitForImGuiReady(gui, loop, 60)) << "ImGui context never became ready.";
 
-    // Ensure overlay visible (ESC toggles it)
-    if (!gui.Visible())
-    {
-        PushEscPress(sdlWin);
-        ASSERT_TRUE(WaitForOverlayVisible(gui, loop, 90))
-            << "Overlay never became visible after ESC.";
-    }
+    // Try to ensure no widget is focused/active by clicking the far bottom-right.
+    int w = 0, h = 0;
+    SDL_GetWindowSize(sdlWin, &w, &h);
+    PushBackgroundClick(sdlWin, (w > 0 ? w - 2 : 1), (h > 0 ? h - 2 : 1));
 
-    // Open any menubar popup without hardcoded coordinates
-    ASSERT_TRUE(ClickMenubarSweepUntilPopup(sdlWin, gui, loop, 3))
-        << "Could not open any menubar popup by sweeping across the menubar band.";
+    // Wait until ImGui naturally reports it is NOT capturing keyboard.
+    ASSERT_TRUE(WaitForImGuiNotCapturingKeyboard(gui, loop, 120))
+        << "ImGui kept WantCaptureKeyboard=true. "
+        << "This can happen depending on UI state; test may be flaky on some platforms.";
 
-    EXPECT_TRUE(IsAnyPopupOpen())
-        << "Popup did not remain open after opening it.";
+    const bool initialVisible = gui.Visible();
 
-    // Prove it's interactable by clicking within the popup window's real rect.
-    (void)ClickPopupRow(sdlWin, gui, loop, 1);
+    // Press ESC once -> should flip
+    PushEscPress(sdlWin);
+    PumpOnce(gui, loop);
 
-    // After clicking an item row, popup often closes; both states are acceptable, but we should not have triggered a quit.
-    EXPECT_FALSE(loop.WantsToQuitPublic())
-        << "Render loop requested quit unexpectedly.";
+    EXPECT_EQ(gui.Visible(), !initialVisible);
+    EXPECT_FALSE(loop.WantsToQuitPublic());
+
+    // Again: click background + wait for no-capture before the second press
+    SDL_GetWindowSize(sdlWin, &w, &h);
+    PushBackgroundClick(sdlWin, (w > 0 ? w - 2 : 1), (h > 0 ? h - 2 : 1));
+
+    ASSERT_TRUE(WaitForImGuiNotCapturingKeyboard(gui, loop, 120))
+        << "ImGui kept WantCaptureKeyboard=true before second ESC press.";
+
+    // Press ESC again -> should restore
+    PushEscPress(sdlWin);
+    PumpOnce(gui, loop);
+
+    EXPECT_EQ(gui.Visible(), initialVisible);
+    EXPECT_FALSE(loop.WantsToQuitPublic());
 
     gui.uninitialize();
     renderer.uninitialize();
