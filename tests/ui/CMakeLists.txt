@@ -1,18 +1,17 @@
-# tests/ui/CMakeLists.txt
-
 # Requires gtest, otherwise fail
 find_package(GTest 1.10 REQUIRED NO_MODULE)
 
 # Creation of executable for this specific test
 add_executable(projectMSDL-ui-test
+    MainMenuUITest.cpp
     EscOverlayToggleTest.cpp
 )
 
-# Call required libraries
+# Call required libraries; testcore, gtest
 target_link_libraries(projectMSDL-ui-test
     PRIVATE
-    ImGui
     projectMSDL_testcorelib
+    ProjectMSDL-GUI
     GTest::gtest_main
 )
 
