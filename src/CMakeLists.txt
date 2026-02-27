@@ -74,6 +74,20 @@ target_compile_definitions(projectMSDL
         PROJECTMSDL_VERSION="${PROJECT_VERSION}"
         )
 
+# OpenGL is required on Linux/macOS because ProjectMWrapper uses glClear/glClearColor/etc.
+# Windows typically resolves this via its toolchain/SDK path, but on non-Windows we must link explicitly.
+if (NOT WIN32)
+        find_package(OpenGL REQUIRED)
+
+        if (TARGET OpenGL::GL)
+                set(_PROJECTMSDL_OPENGL_TARGET OpenGL::GL)
+        elseif (TARGET OpenGL::OpenGL)
+                set(_PROJECTMSDL_OPENGL_TARGET OpenGL::OpenGL)
+        else()
+                message(FATAL_ERROR "OpenGL was found, but no imported OpenGL target was provided by CMake.")
+        endif()
+endif()
+
 target_link_libraries(projectMSDL
         PRIVATE
         ProjectMSDL-GUI

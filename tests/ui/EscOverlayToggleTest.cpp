@@ -10,7 +10,7 @@
 
 #include <SDL2/SDL.h>
 #include <imgui.h>
-
+#include <imgui_internal.h>
 #include <cstdlib>
 #include <chrono>
 #include <thread>
