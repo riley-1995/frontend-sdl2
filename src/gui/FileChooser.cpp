@@ -236,8 +236,9 @@ bool FileChooser::PopulateFileList()
             // This will throw for broken symlinks or if the file/dir isn't accessible
             isDirectory = file.isDirectory();
         }
-        catch (...)
+        catch (Poco::Exception& ex)
         {
+            poco_debug_f2(_logger, "Skipping inaccessible path %s: %s", file.path(), ex.displayText());
         }
 
         Poco::Path filePath(file.path());
@@ -324,8 +325,9 @@ void FileChooser::ChangeDirectory(Poco::Path newDirectory)
             isHidden = directoryIterator->isHidden();
             isDirectory = directoryIterator->isDirectory();
         }
-        catch (...)
+        catch (Poco::Exception& ex)
         {
+            poco_debug_f2(_logger, "Skipping inaccessible path %s: %s", directoryIterator.path().toString(), ex.displayText());
         }
 
         if ((!isHidden || _showHidden))
