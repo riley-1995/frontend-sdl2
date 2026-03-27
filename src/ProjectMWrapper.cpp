@@ -20,93 +20,132 @@ const char* ProjectMWrapper::name() const
 
 void ProjectMWrapper::initialize(Poco::Util::Application& app)
 {
+    // Stage 1: Load configuration views and paths
+    InitializeConfiguration(app);
+
+    if (!_projectM)
+    {
+        // Stage 2: Create projectM core
+        InitializeProjectMCore(app);
+
+        // Stage 3: Configure projectM settings
+        ConfigureProjectMSettings();
+
+        // Stage 4: Initialize playlist
+        InitializePlaylist();
+    }
+
+    // Stage 5: Register callbacks and observers (happens regardless of whether _projectM existed)
+    RegisterObserversAndCallbacks();
+}
+
+void ProjectMWrapper::InitializeConfiguration(Poco::Util::Application& app)
+{
     auto& projectMSDLApp = dynamic_cast<ProjectMSDLApplication&>(app);
     _projectMConfigView = projectMSDLApp.config().createView("projectM");
     _userConfig = projectMSDLApp.UserConfiguration();
     poco_information_f1(_logger, "Events enabled: %?d", _projectMConfigView->eventsEnabled());
 
+    // Query SDL window for canvas dimensions
+    auto& sdlWindow = app.getSubsystem<SDLRenderingWindow>();
+    sdlWindow.GetDrawableSize(_initCanvasWidth, _initCanvasHeight);
+
+    // Load preset and texture paths
+    _initPresetPaths = GetPathListWithDefault("presetPath", app.config().getString("application.dir", ""));
+    _initTexturePaths = GetPathListWithDefault("texturePath", app.config().getString("", ""));
+}
+
+void ProjectMWrapper::InitializeProjectMCore(Poco::Util::Application& app)
+{
+    _projectM = projectm_create();
     if (!_projectM)
     {
-        auto& sdlWindow = app.getSubsystem<SDLRenderingWindow>();
+        poco_error(_logger, "Failed to initialize projectM. Possible reasons are a lack of required OpenGL features or GPU resources.");
+        throw std::runtime_error("projectM initialization failed");
+    }
+}
 
-        int canvasWidth{0};
-        int canvasHeight{0};
+void ProjectMWrapper::ConfigureProjectMSettings()
+{
+    // Set window dimensions
+    projectm_set_window_size(_projectM, _initCanvasWidth, _initCanvasHeight);
 
-        sdlWindow.GetDrawableSize(canvasWidth, canvasHeight);
+    // Configure FPS
+    int fps = _projectMConfigView->getInt("fps", 60);
+    if (fps <= 0)
+    {
+        // We don't know the target framerate, pass in a default of 60.
+        fps = 60;
+    }
+    projectm_set_fps(_projectM, fps);
 
-        auto presetPaths = GetPathListWithDefault("presetPath", app.config().getString("application.dir", ""));
-        auto texturePaths = GetPathListWithDefault("texturePath", app.config().getString("", ""));
+    // Configure mesh
+    projectm_set_mesh_size(_projectM, _projectMConfigView->getInt("meshX", 48), _projectMConfigView->getInt("meshY", 32));
 
-        _projectM = projectm_create();
-        if (!_projectM)
+    // Configure aspect and preset behavior
+    projectm_set_aspect_correction(_projectM, _projectMConfigView->getBool("aspectCorrectionEnabled", true));
+    projectm_set_preset_locked(_projectM, _projectMConfigView->getBool("presetLocked", false));
+
+    // Configure preset display settings
+    projectm_set_preset_duration(_projectM, _projectMConfigView->getDouble("displayDuration", 30.0));
+    projectm_set_soft_cut_duration(_projectM, _projectMConfigView->getDouble("transitionDuration", 3.0));
+    projectm_set_hard_cut_enabled(_projectM, _projectMConfigView->getBool("hardCutsEnabled", false));
+    projectm_set_hard_cut_duration(_projectM, _projectMConfigView->getDouble("hardCutDuration", 20.0));
+    projectm_set_hard_cut_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("hardCutSensitivity", 1.0)));
+    projectm_set_beat_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("beatSensitivity", 1.0)));
+
+    // Configure texture paths if available
+    if (!_initTexturePaths.empty())
+    {
+        std::vector<const char*> texturePathList;
+        texturePathList.reserve(_initTexturePaths.size());
+        for (const auto& texturePath : _initTexturePaths)
         {
-            poco_error(_logger, "Failed to initialize projectM. Possible reasons are a lack of required OpenGL features or GPU resources.");
-            throw std::runtime_error("projectM initialization failed");
+            texturePathList.push_back(texturePath.data());
         }
+        projectm_set_texture_search_paths(_projectM, texturePathList.data(), _initTexturePaths.size());
+    }
+}
 
-        int fps = _projectMConfigView->getInt("fps", 60);
-        if (fps <= 0)
-        {
-            // We don't know the target framerate, pass in a default of 60.
-            fps = 60;
-        }
-
-        projectm_set_window_size(_projectM, canvasWidth, canvasHeight);
-        projectm_set_fps(_projectM, fps);
-        projectm_set_mesh_size(_projectM, _projectMConfigView->getInt("meshX", 48), _projectMConfigView->getInt("meshY", 32));
-        projectm_set_aspect_correction(_projectM, _projectMConfigView->getBool("aspectCorrectionEnabled", true));
-        projectm_set_preset_locked(_projectM, _projectMConfigView->getBool("presetLocked", false));
-
-        // Preset display settings
-        projectm_set_preset_duration(_projectM, _projectMConfigView->getDouble("displayDuration", 30.0));
-        projectm_set_soft_cut_duration(_projectM, _projectMConfigView->getDouble("transitionDuration", 3.0));
-        projectm_set_hard_cut_enabled(_projectM, _projectMConfigView->getBool("hardCutsEnabled", false));
-        projectm_set_hard_cut_duration(_projectM, _projectMConfigView->getDouble("hardCutDuration", 20.0));
-        projectm_set_hard_cut_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("hardCutSensitivity", 1.0)));
-        projectm_set_beat_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("beatSensitivity", 1.0)));
-
-        if (!texturePaths.empty())
-        {
-            std::vector<const char*> texturePathList;
-            texturePathList.reserve(texturePaths.size());
-            for (const auto& texturePath : texturePaths)
-            {
-                texturePathList.push_back(texturePath.data());
-            }
-
-            projectm_set_texture_search_paths(_projectM, texturePathList.data(), texturePaths.size());
-        }
-
-        // Playlist
-        _playlist = projectm_playlist_create(_projectM);
-        if (!_playlist)
-        {
-
-            poco_error(_logger, "Failed to create the projectM preset playlist manager instance.");
-            throw std::runtime_error("Playlist initialization failed");
-        }
-
-        projectm_playlist_set_shuffle(_playlist, _projectMConfigView->getBool("shuffleEnabled", true));
-
-        for (const auto& presetPath : presetPaths)
-        {
-            Poco::File file(presetPath);
-            if (file.exists() && file.isFile())
-            {
-                projectm_playlist_add_preset(_playlist, presetPath.c_str(), false);
-            }
-            else
-            {
-                // Symbolic links also fall under this. Without complex resolving, we can't
-                // be sure what the link exactly points to, especially if a trailing slash is missing.
-                projectm_playlist_add_path(_playlist, presetPath.c_str(), true, false);
-            }
-        }
-        projectm_playlist_sort(_playlist, 0, projectm_playlist_size(_playlist), SORT_PREDICATE_FILENAME_ONLY, SORT_ORDER_ASCENDING);
-
-        projectm_playlist_set_preset_switched_event_callback(_playlist, &ProjectMWrapper::PresetSwitchedEvent, static_cast<void*>(this));
+void ProjectMWrapper::InitializePlaylist()
+{
+    // Create playlist manager
+    _playlist = projectm_playlist_create(_projectM);
+    if (!_playlist)
+    {
+        poco_error(_logger, "Failed to create the projectM preset playlist manager instance.");
+        throw std::runtime_error("Playlist initialization failed");
     }
 
+    // Configure shuffle mode
+    projectm_playlist_set_shuffle(_playlist, _projectMConfigView->getBool("shuffleEnabled", true));
+
+    // Populate playlist from preset paths
+    for (const auto& presetPath : _initPresetPaths)
+    {
+        Poco::File file(presetPath);
+        if (file.exists() && file.isFile())
+        {
+            projectm_playlist_add_preset(_playlist, presetPath.c_str(), false);
+        }
+        else
+        {
+            // Symbolic links also fall under this. Without complex resolving, we can't
+            // be sure what the link exactly points to, especially if a trailing slash is missing.
+            projectm_playlist_add_path(_playlist, presetPath.c_str(), true, false);
+        }
+    }
+
+    // Sort playlist by filename
+    projectm_playlist_sort(_playlist, 0, projectm_playlist_size(_playlist), SORT_PREDICATE_FILENAME_ONLY, SORT_ORDER_ASCENDING);
+
+    // Register preset switched event callback
+    projectm_playlist_set_preset_switched_event_callback(_playlist, &ProjectMWrapper::PresetSwitchedEvent, static_cast<void*>(this));
+}
+
+void ProjectMWrapper::RegisterObserversAndCallbacks()
+{
+    // Register notification center observer for playback control
     Poco::NotificationCenter::defaultCenter().addObserver(_playbackControlNotificationObserver);
 
     // Observe user configuration changes (set via the settings window)
