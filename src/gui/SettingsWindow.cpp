@@ -14,6 +14,63 @@
 
 #include <Poco/Util/Application.h>
 
+namespace
+{
+constexpr float kSettingsWindowWidth = 1050.0F;
+constexpr float kSettingsWindowHeight = 550.0F;
+
+constexpr int kSettingsTableColumnCount = 5;
+constexpr float kChooseColumnWidth = 100.0F;
+constexpr float kResetColumnWidth = 50.0F;
+constexpr float kAudioChooseColumnWidth = 50.0F;
+constexpr float kAudioResetColumnWidth = 100.0F;
+
+constexpr double kPresetDisplayDurationDefault = 30.0;
+constexpr double kPresetDisplayDurationMin = 1.0;
+constexpr double kPresetDisplayDurationMax = 240.0;
+constexpr double kPresetTransitionDurationDefault = 3.0;
+constexpr double kPresetTransitionDurationMin = 0.0;
+constexpr double kPresetTransitionDurationMax = 10.0;
+constexpr double kHardCutDurationDefault = 20.0;
+constexpr double kHardCutDurationMin = 1.0;
+constexpr double kHardCutDurationMax = 240.0;
+constexpr double kHardCutSensitivityDefault = 1.0;
+constexpr double kHardCutSensitivityMin = 0.0;
+constexpr double kHardCutSensitivityMax = 10.0;
+
+constexpr int kMeshDefaultX = 64;
+constexpr int kMeshDefaultY = 48;
+constexpr int kMeshSizeMin = 8;
+// Upper mesh bound keeps CPU-heavy settings available for advanced presets.
+constexpr int kMeshSizeMax = 300;
+
+constexpr int kDefaultWindowWidth = 1920;
+constexpr int kDefaultWindowHeight = 1080;
+constexpr int kWindowSizeMin = 32;
+// 8192 mirrors SDL/UI safety bounds for extreme resolutions and large desktops.
+constexpr int kWindowSizeMax = 8192;
+constexpr int kDefaultMonitor = 0;
+constexpr int kMonitorMin = 0;
+constexpr int kMonitorMax = 10;
+constexpr int kFullscreenMin = 240;
+constexpr int kDefaultFps = 60;
+constexpr int kFpsMin = 0;
+constexpr int kFpsMax = 300;
+
+constexpr double kUiScaleDefault = 1.0;
+constexpr double kUiScaleMin = 0.1;
+constexpr double kUiScaleMax = 3.0;
+
+constexpr double kBeatSensitivityDefault = 1.0;
+constexpr double kBeatSensitivityMin = 0.0;
+constexpr double kBeatSensitivityMax = 2.0;
+
+constexpr std::size_t kPathBufferSize = 2048;
+constexpr std::size_t kPathBufferCopyLimit = kPathBufferSize - 1;
+
+constexpr int kWindowPositionLimit = 8192;
+} // namespace
+
 SettingsWindow::SettingsWindow(ProjectMGUI& gui)
     : _gui(gui)
     , _audioCapture(ProjectMSDLApplication::instance().getSubsystem<AudioCapture>())
@@ -24,7 +81,7 @@ SettingsWindow::SettingsWindow(ProjectMGUI& gui)
 
 void SettingsWindow::Show()
 {
-    _userScale = static_cast<float>(_userConfiguration->getDouble("window.uiScale", 1.0));
+    _userScale = static_cast<float>(_userConfiguration->getDouble("window.uiScale", kUiScaleDefault));
     _visible = true;
 }
 
@@ -45,7 +102,7 @@ void SettingsWindow::Draw()
     }
     windowId.append("###Settings");
 
-    ImGui::SetNextWindowSize(ImVec2(1050, 550), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(kSettingsWindowWidth, kSettingsWindowHeight), ImGuiCond_FirstUseEver);
     if (ImGui::Begin(windowId.c_str(), &_visible, windowFlags))
     {
         if (ImGui::BeginTabBar("projectM Settings", tabBarFlags))
@@ -79,12 +136,12 @@ void SettingsWindow::DrawProjectMSettingsTab()
 {
     if (ImGui::BeginTabItem("projectM"))
     {
-        if (ImGui::BeginTable("projectM", 5, ImGuiTableFlags_None))
+        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
         {
             ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
             ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kChooseColumnWidth);
+            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kResetColumnWidth);
             ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
 
             ImGui::TableNextRow();
@@ -121,12 +178,14 @@ void SettingsWindow::DrawProjectMSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("Preset Display Duration",
                              "Time in seconds a preset will be displayed before it's switched.");
-            DoubleSetting("projectM.displayDuration", 30.0, 1.0, 240.0);
+            DoubleSetting("projectM.displayDuration", kPresetDisplayDurationDefault, kPresetDisplayDurationMin,
+                          kPresetDisplayDurationMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Preset Transition Duration",
                              "Time in seconds it takes to transition softly from one preset to another.");
-            DoubleSetting("projectM.transitionDuration", 3.0, .0, 10.0);
+            DoubleSetting("projectM.transitionDuration", kPresetTransitionDurationDefault,
+                          kPresetTransitionDurationMin, kPresetTransitionDurationMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Enable Hard Cuts",
@@ -136,12 +195,14 @@ void SettingsWindow::DrawProjectMSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("  Hard Cut Duration",
                              "Time in seconds before a preset will be switched at\nthe earliest on hard cuts. If larger than display duration,\nhard cuts won't happen at all.");
-            DoubleSetting("projectM.hardCutDuration", 20.0, 1.0, 240.0);
+            DoubleSetting("projectM.hardCutDuration", kHardCutDurationDefault, kHardCutDurationMin,
+                          kHardCutDurationMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("  Hard Cut Threshold",
                              "Volume difference between measurements required to trigger a hard cut.\nHigher values mean fewer hard cuts.");
-            DoubleSetting("projectM.hardCutSensitivity", 1.0, 0.0, 10.0);
+            DoubleSetting("projectM.hardCutSensitivity", kHardCutSensitivityDefault,
+                          kHardCutSensitivityMin, kHardCutSensitivityMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Aspect Correction",
@@ -151,7 +212,8 @@ void SettingsWindow::DrawProjectMSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("Per-Point Mesh Size X/Y",
                              "Size of the per-point transformation grid.\nHigher values produce better quality, but require exponentially more CPU time to calculate.\nMilkdrop's default is 48x32.");
-            IntegerSettingVec("projectM.meshX", "projectM.meshY", 64, 48, 8, 300);
+            IntegerSettingVec("projectM.meshX", "projectM.meshY", kMeshDefaultX, kMeshDefaultY, kMeshSizeMin,
+                              kMeshSizeMax);
 
             ImGui::EndTable();
         }
@@ -163,12 +225,12 @@ void SettingsWindow::DrawWindowSettingsTab()
 {
     if (ImGui::BeginTabItem("Window / Rendering"))
     {
-        if (ImGui::BeginTable("projectM", 5, ImGuiTableFlags_None))
+        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
         {
             ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
             ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kChooseColumnWidth);
+            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kResetColumnWidth);
             ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
 
             ImGui::TableNextRow();
@@ -196,7 +258,8 @@ void SettingsWindow::DrawWindowSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("  Window Size",
                              "Initial window size when starting projectM.\nThis might or might not include the window decoration, depending on the OS.");
-            IntegerSettingVec("window.width", "window.height", 1920, 1080, 32, 8192);
+            IntegerSettingVec("window.width", "window.height", kDefaultWindowWidth, kDefaultWindowHeight,
+                              kWindowSizeMin, kWindowSizeMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("  Window Position",
@@ -206,7 +269,7 @@ void SettingsWindow::DrawWindowSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("  Monitor",
                              "Use 0 to let the OS select the monitor, or any positive number to select a specific monitor.\nIf the number is larger than the number of connected monitors, the last available one will be used.");
-            IntegerSetting("window.monitor", 0, 0, 10);
+            IntegerSetting("window.monitor", kDefaultMonitor, kMonitorMin, kMonitorMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Borderless Window",
@@ -225,12 +288,13 @@ void SettingsWindow::DrawWindowSettingsTab()
             ImGui::TableNextRow();
             LabelWithTooltip("  Exclusive Mode Resolution",
                              "Resolution to change to in exclusive fullscreen mode.\nNot all graphics driver support arbitrary resolution and will use the next-best supported one.");
-            IntegerSettingVec("fullscreen.width", "fullscreen.height", 1920, 1080, 240, 8192);
+            IntegerSettingVec("fullscreen.width", "fullscreen.height", kDefaultWindowWidth, kDefaultWindowHeight,
+                              kFullscreenMin, kWindowSizeMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Target FPS",
                              "Limit frames rendered per second to the given FPS value.\nNOTE: A value of 0 will NOT limit FPS and render at either VSync or unlimited pace, possibly using all CPU/GPU resources.");
-            IntegerSetting("projectM.fps", 60, 0, 300);
+            IntegerSetting("projectM.fps", kDefaultFps, kFpsMin, kFpsMax);
 
             ImGui::TableNextRow();
             LabelWithTooltip("Wait for Vertical Sync",
@@ -254,7 +318,7 @@ void SettingsWindow::DrawWindowSettingsTab()
 
             ImGui::TableNextRow();
             LabelWithTooltip("UI Scaling Factor", "Multiplies the default UI/font size with the given factor.");
-            DoubleSettingWithApply("window.uiScale", 1.0, 0.1, 3.0, _userScale);
+            DoubleSettingWithApply("window.uiScale", kUiScaleDefault, kUiScaleMin, kUiScaleMax, _userScale);
 
             ImGui::EndTable();
         }
@@ -266,12 +330,12 @@ void SettingsWindow::DrawAudioSettingsTab()
 {
     if (ImGui::BeginTabItem("Audio"))
     {
-        if (ImGui::BeginTable("projectM", 5, ImGuiTableFlags_None))
+        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
         {
             ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
             ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, 50.0f);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kAudioChooseColumnWidth);
+            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kAudioResetColumnWidth);
             ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
 
             ImGui::TableNextRow();
@@ -280,7 +344,8 @@ void SettingsWindow::DrawAudioSettingsTab()
 
             ImGui::TableNextRow();
             LabelWithTooltip("Beat Sensitivity", "Beat detection multiplier.");
-            DoubleSetting("projectM.beatSensitivity", 1.0, 0.0, 2.0);
+            DoubleSetting("projectM.beatSensitivity", kBeatSensitivityDefault, kBeatSensitivityMin,
+                          kBeatSensitivityMax);
 
             ImGui::EndTable();
         }
@@ -367,8 +432,8 @@ void SettingsWindow::PathSetting(const std::string& property)
     ImGui::TableSetColumnIndex(1);
 
     auto path = _userConfiguration->getString(property, "");
-    char pathBuffer[2048]{};
-    strncpy(pathBuffer, path.c_str(), std::min<size_t>(2047, path.size()));
+    char pathBuffer[kPathBufferSize]{};
+    strncpy(pathBuffer, path.c_str(), std::min<std::size_t>(kPathBufferCopyLimit, path.size()));
 
     ImGui::SetNextItemWidth(-1);
     if (ImGui::InputText(std::string("##path_" + property).c_str(), &pathBuffer[0], IM_ARRAYSIZE(pathBuffer),
@@ -532,7 +597,7 @@ void SettingsWindow::WindowPositionSetting()
             _userConfiguration->getInt("window.left", 0),
             _userConfiguration->getInt("window.top", 0)};
 
-        if (ImGui::SliderInt2("##window_pos", values, -8192, 8192))
+        if (ImGui::SliderInt2("##window_pos", values, -kWindowPositionLimit, kWindowPositionLimit))
         {
             _userConfiguration->setInt("window.left", values[0]);
             _userConfiguration->setInt("window.top", values[1]);
