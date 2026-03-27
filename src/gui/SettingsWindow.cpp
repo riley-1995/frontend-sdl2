@@ -455,12 +455,7 @@ void SettingsWindow::PathSetting(const std::string& property)
     }
     ImGui::PopID();
 
-    ResetButton(property);
-
-    if (_commandLineConfiguration->has(property))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker(property);
 }
 
 
@@ -476,12 +471,7 @@ void SettingsWindow::BooleanSetting(const std::string& property, bool defaultVal
         _changed = true;
     }
 
-    ResetButton(property);
-
-    if (_commandLineConfiguration->has(property))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker(property);
 }
 
 void SettingsWindow::IntegerSetting(const std::string& property, int defaultValue, int min, int max)
@@ -496,12 +486,7 @@ void SettingsWindow::IntegerSetting(const std::string& property, int defaultValu
         _changed = true;
     }
 
-    ResetButton(property);
-
-    if (_commandLineConfiguration->has(property))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker(property);
 }
 
 void SettingsWindow::IntegerSettingVec(const std::string& property1, const std::string& property2, int defaultValue1,
@@ -520,12 +505,7 @@ void SettingsWindow::IntegerSettingVec(const std::string& property1, const std::
         _changed = true;
     }
 
-    ResetButton(property1, property2);
-
-    if (_commandLineConfiguration->has(property1) || _commandLineConfiguration->has(property2))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker(property1, property2);
 }
 
 void SettingsWindow::DoubleSetting(const std::string& property, double defaultValue, double min, double max)
@@ -541,12 +521,7 @@ void SettingsWindow::DoubleSetting(const std::string& property, double defaultVa
         _changed = true;
     }
 
-    ResetButton(property);
-
-    if (_commandLineConfiguration->has(property))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker(property);
 }
 
 void SettingsWindow::DoubleSettingWithApply(const std::string& property, double defaultValue, double min, double max,
@@ -567,14 +542,9 @@ void SettingsWindow::DoubleSettingWithApply(const std::string& property, double 
     }
     ImGui::PopID();
 
-    if (ResetButton(property))
+    if (DrawResetAndOverrideMarker(property))
     {
         tempValue = static_cast<float>(_userConfiguration->getDouble(property, defaultValue));
-    }
-
-    if (_commandLineConfiguration->has(property))
-    {
-        OverriddenSettingMarker();
     }
 }
 
@@ -605,12 +575,7 @@ void SettingsWindow::WindowPositionSetting()
         }
     }
 
-    ResetButton("window.overridePosition");
-
-    if (_commandLineConfiguration->has("window.left") || _commandLineConfiguration->has("window.top"))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker("window.overridePosition", "", "window.left", "window.top");
 }
 
 void SettingsWindow::AudioDeviceSetting()
@@ -650,12 +615,7 @@ void SettingsWindow::AudioDeviceSetting()
         ImGui::EndCombo();
     }
 
-    ResetButton("audio.device");
-
-    if (_commandLineConfiguration->has("audio.device"))
-    {
-        OverriddenSettingMarker();
-    }
+    DrawResetAndOverrideMarker("audio.device");
 }
 
 bool SettingsWindow::ResetButton(const std::string& property1, const std::string& property2)
@@ -697,4 +657,30 @@ void SettingsWindow::OverriddenSettingMarker()
         ImGui::TextUnformatted("The value configured here will only be used if NOT overridden via the command line.");
         ImGui::EndTooltip();
     }
+}
+
+bool SettingsWindow::DrawResetAndOverrideMarker(const std::string& resetKey1, const std::string& resetKey2,
+                                                const std::string& overrideKey1, const std::string& overrideKey2)
+{
+    // Call the reset button and capture the pressed state
+    bool resetPressed = ResetButton(resetKey1, resetKey2);
+
+    // Determine which keys to check for override marker
+    std::string checkKey1 = overrideKey1.empty() ? resetKey1 : overrideKey1;
+    std::string checkKey2 = overrideKey2.empty() ? resetKey2 : overrideKey2;
+
+    // Check if any of the keys are overridden by command line
+    bool isOverridden = _commandLineConfiguration->has(checkKey1);
+    if (!checkKey2.empty())
+    {
+        isOverridden = isOverridden || _commandLineConfiguration->has(checkKey2);
+    }
+
+    // Draw the override marker if needed
+    if (isOverridden)
+    {
+        OverriddenSettingMarker();
+    }
+
+    return resetPressed;
 }

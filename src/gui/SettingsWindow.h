@@ -139,6 +139,17 @@ private:
      */
     void OverriddenSettingMarker();
 
+    /**
+     * @brief Displays a reset button and override marker for one or two properties.
+     * @param resetKey1 Primary property to reset.
+     * @param resetKey2 Optional second property to reset.
+     * @param overrideKey1 Optional property to check for override marker (defaults to resetKey1 if empty).
+     * @param overrideKey2 Optional second property to check for override marker.
+     * @return true if reset button was pressed, false otherwise.
+     */
+    bool DrawResetAndOverrideMarker(const std::string& resetKey1, const std::string& resetKey2 = "",
+                                    const std::string& overrideKey1 = "", const std::string& overrideKey2 = "");
+
     ProjectMGUI& _gui; //!< The GUI subsystem.
     AudioCapture& _audioCapture; //!< The audio capture subsystem.
 
