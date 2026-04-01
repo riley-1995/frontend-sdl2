@@ -210,39 +210,29 @@ std::vector<AudioCaptureImpl::AudioDevice> AudioCaptureImpl::GetAudioDeviceList(
     return deviceList;
 }
 
-bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
+// Helper: Stage 1 - Activate device and get IAudioClient interface
+HRESULT AudioCaptureImpl::SelectAndActivateDevice(IMMDevice* device)
 {
-    // activate an IAudioClient
-    HRESULT result = device->Activate(__uuidof(IAudioClient),
-                                      CLSCTX_ALL,
-                                      nullptr,
-                                      reinterpret_cast<void**>(&_audioClient));
+    HRESULT result = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&_audioClient));
     if (FAILED(result))
     {
         poco_error_f1(_logger, "IMMDevice::Activate(IAudioClient) failed: result = 0x%08?x", result);
-        return false;
     }
+    return result;
+}
 
-    // get the default device periodicity
-    REFERENCE_TIME hnsDefaultDevicePeriod;
-    result = _audioClient->GetDevicePeriod(&hnsDefaultDevicePeriod,
-                                           nullptr);
-    if (FAILED(result))
-    {
-        poco_error_f1(_logger, "IAudioClient::GetDevicePeriod failed: result = 0x%08?x", result);
-        return false;
-    }
-
-    // get the default device format
-    WAVEFORMATEX* pwfx;
-    result = _audioClient->GetMixFormat(&pwfx);
+// Helper: Stage 2 - Retrieve and validate audio format
+int AudioCaptureImpl::NegotiateAudioFormat()
+{
+    WAVEFORMATEX* pwfx = nullptr;
+    HRESULT result = _audioClient->GetMixFormat(&pwfx);
     if (FAILED(result))
     {
         poco_error_f1(_logger, "IAudioClient::GetMixFormat failed: result = 0x%08?x", result);
-        return false;
+        return -1;
     }
 
-    // Should default to float32 data, but some devices might deliver other formats.
+    // Validate format is float (IEEE float or WAVE_FORMAT_EXTENSIBLE with float subformat)
     if (pwfx->wFormatTag != WAVE_FORMAT_IEEE_FLOAT)
     {
         auto extensibleFormat = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
@@ -250,18 +240,43 @@ bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
         {
             poco_error_f1(_logger, "IAudioClient::GetMixFormat returned non-float sample format: 0x%04?x", pwfx->wFormatTag);
             CoTaskMemFree(pwfx);
-            return false;
+            return -1;
         }
         else if (!IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, extensibleFormat->SubFormat))
         {
             poco_error_f1(_logger, "IAudioClient::GetMixFormat returned non-float extensible sub format: 0x%04?x", extensibleFormat->SubFormat);
             CoTaskMemFree(pwfx);
-            return false;
+            return -1;
         }
     }
 
-    _channels = pwfx->nChannels;
+    int channels = pwfx->nChannels;
+    CoTaskMemFree(pwfx);
+    return channels;
+}
 
+// Helper: Stage 3 - Initialize IAudioClient and get device period
+HRESULT AudioCaptureImpl::InitializeAudioClient(int channels, bool useLoopback)
+{
+    // Get the default device periodicity
+    REFERENCE_TIME hnsDefaultDevicePeriod;
+    HRESULT result = _audioClient->GetDevicePeriod(&hnsDefaultDevicePeriod, nullptr);
+    if (FAILED(result))
+    {
+        poco_error_f1(_logger, "IAudioClient::GetDevicePeriod failed: result = 0x%08?x", result);
+        return result;
+    }
+
+    // Get format again for Initialize call
+    WAVEFORMATEX* pwfx = nullptr;
+    result = _audioClient->GetMixFormat(&pwfx);
+    if (FAILED(result))
+    {
+        poco_error_f1(_logger, "IAudioClient::GetMixFormat failed (second call): result = 0x%08?x", result);
+        return result;
+    }
+
+    // Initialize the audio client
     // Can't use event-driven processing in loopback mode, but as we
     // get a "fill buffer" request before rendering each frame, this isn't
     // really necessary anyway.
@@ -277,35 +292,96 @@ bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
 
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->Initialize failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::Initialize failed: result = 0x%08?x", result);
     }
+    return result;
+}
 
-    // activate an IAudioCaptureClient
-    result = _audioClient->GetService(
+// Helper: Stage 4 - Setup capture client and start stream
+HRESULT AudioCaptureImpl::SetupCaptureAndStream()
+{
+    // Get the capture client interface
+    HRESULT result = _audioClient->GetService(
         __uuidof(IAudioCaptureClient),
-        (void**) &_audioCaptureClient);
+        (void**)&_audioCaptureClient);
 
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->GetService failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::GetService failed: result = 0x%08?x", result);
+        return result;
     }
 
+    // Start the audio stream
     result = _audioClient->Start();
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->Start failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::Start failed: result = 0x%08?x", result);
+    }
+    return result;
+}
+
+bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
+{
+    // Stage 1: Activate device and get IAudioClient
+    HRESULT result = SelectAndActivateDevice(device);
+    if (FAILED(result))
+    {
+        goto cleanup;
+    }
+
+    // Stage 2: Negotiate audio format
+    int channels = NegotiateAudioFormat();
+    if (channels <= 0)
+    {
+        goto cleanup;
+    }
+    _channels = channels;
+
+    // Stage 3: Initialize audio client
+    result = InitializeAudioClient(channels, useLoopback);
+    if (FAILED(result))
+    {
+        goto cleanup;
+    }
+
+    // Stage 4: Setup capture client and start stream
+    result = SetupCaptureAndStream();
+    if (FAILED(result))
+    {
+        goto cleanup;
     }
 
     return true;
+
+cleanup:
+    // Consistent cleanup on any failure: stops stream and releases resources
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Cleaning up after failed device initialization.");
+        _audioClient->Stop();
+    }
+    if (_audioCaptureClient)
+    {
+        poco_trace(_logger, "Releasing audio capture client (cleanup).");
+        _audioCaptureClient->Release();
+        _audioCaptureClient = nullptr;
+    }
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Releasing audio client (cleanup).");
+        _audioClient->Release();
+        _audioClient = nullptr;
+    }
+    return false;
 }
 
 void AudioCaptureImpl::CloseAudioDevice(IMMDevice* device)
 {
-    poco_trace(_logger, "Stopping audio client.");
-    _audioClient->Stop();
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Stopping audio client.");
+        _audioClient->Stop();
+    }
 
     if (_audioCaptureClient)
     {
