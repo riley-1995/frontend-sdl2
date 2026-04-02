@@ -2,11 +2,17 @@
 
 #include <SDL2/SDL.h>
 
+namespace
+{
+constexpr uint32_t kMillisecondsPerSecond = 1000;  // Convert FPS to millisecond frame duration
+constexpr uint32_t kFrameHistorySize = 10;         // Rolling average window for FPS calculation
+}  // namespace
+
 void FPSLimiter::TargetFPS(int fps)
 {
     if (fps)
     {
-        _targetFrameTime = 1000 / fps;
+        _targetFrameTime = kMillisecondsPerSecond / fps;
     }
     else
     {
@@ -33,7 +39,7 @@ float FPSLimiter::FPS() const
         return 0.0f;
     }
 
-   return 1000.0f / (static_cast<float>(frameTimeSum) / static_cast<float>(frameTimeCount));
+   return static_cast<float>(kMillisecondsPerSecond) / (static_cast<float>(frameTimeSum) / static_cast<float>(frameTimeCount));
 }
 
 void FPSLimiter::StartFrame()
@@ -52,5 +58,5 @@ void FPSLimiter::EndFrame()
     }
 
     _lastFrameTimes[_nextFrameTimesOffset] = frameTime;
-    _nextFrameTimesOffset = (_nextFrameTimesOffset + 1) % 10;
+    _nextFrameTimesOffset = (_nextFrameTimesOffset + 1) % kFrameHistorySize;
 }

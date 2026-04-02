@@ -45,5 +45,3 @@ protected:
     int _nextFrameTimesOffset{ 0 }; //!< Next offset to overwrite the _lastFrameTimes ring buffer.
 
 };
-
-
