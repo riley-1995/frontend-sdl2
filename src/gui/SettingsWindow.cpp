@@ -2,111 +2,19 @@
 
 #include "AudioCapture.h"
 #include "ProjectMSDLApplication.h"
-#include "SDLRenderingWindow.h"
-
-#include "ProjectMGUI.h"
 
 #include "notifications/DisplayToastNotification.h"
 
 #include <imgui.h>
 
 #include <Poco/NotificationCenter.h>
-
-#include <Poco/Util/Application.h>
+#include <Poco/Path.h>
 
 namespace
 {
 constexpr float kSettingsWindowWidth = 1050.0F;
 constexpr float kSettingsWindowHeight = 550.0F;
 
-constexpr int kSettingsTableColumnCount = 5;
-constexpr float kChooseColumnWidth = 100.0F;
-constexpr float kResetColumnWidth = 50.0F;
-constexpr float kAudioChooseColumnWidth = 50.0F;
-constexpr float kAudioResetColumnWidth = 100.0F;
-
-constexpr double kPresetDisplayDurationDefault = 30.0;
-constexpr double kPresetDisplayDurationMin = 1.0;
-constexpr double kPresetDisplayDurationMax = 240.0;
-constexpr double kPresetTransitionDurationDefault = 3.0;
-constexpr double kPresetTransitionDurationMin = 0.0;
-constexpr double kPresetTransitionDurationMax = 10.0;
-constexpr double kHardCutDurationDefault = 20.0;
-constexpr double kHardCutDurationMin = 1.0;
-constexpr double kHardCutDurationMax = 240.0;
-constexpr double kHardCutSensitivityDefault = 1.0;
-constexpr double kHardCutSensitivityMin = 0.0;
-constexpr double kHardCutSensitivityMax = 10.0;
-
-constexpr int kMeshDefaultX = 64;
-constexpr int kMeshDefaultY = 48;
-constexpr int kMeshSizeMin = 8;
-// Upper mesh bound keeps CPU-heavy settings available for advanced presets.
-constexpr int kMeshSizeMax = 300;
-
-constexpr int kDefaultWindowWidth = 1920;
-constexpr int kDefaultWindowHeight = 1080;
-constexpr int kWindowSizeMin = 32;
-// 8192 mirrors SDL/UI safety bounds for extreme resolutions and large desktops.
-constexpr int kWindowSizeMax = 8192;
-constexpr int kDefaultMonitor = 0;
-constexpr int kMonitorMin = 0;
-constexpr int kMonitorMax = 10;
-constexpr int kFullscreenMin = 240;
-constexpr int kDefaultFps = 60;
-constexpr int kFpsMin = 0;
-constexpr int kFpsMax = 300;
-
-constexpr double kUiScaleDefault = 1.0;
-constexpr double kUiScaleMin = 0.1;
-constexpr double kUiScaleMax = 3.0;
-
-constexpr double kBeatSensitivityDefault = 1.0;
-constexpr double kBeatSensitivityMin = 0.0;
-constexpr double kBeatSensitivityMax = 2.0;
-
-constexpr std::size_t kPathBufferSize = 2048;
-constexpr std::size_t kPathBufferCopyLimit = kPathBufferSize - 1;
-
-constexpr int kWindowPositionLimit = 8192;
-
-constexpr char kConfigProjectMPresetPath[] = "projectM.presetPath";
-constexpr char kConfigProjectMTexturePath[] = "projectM.texturePath";
-constexpr char kConfigProjectMEnableSplash[] = "projectM.enableSplash";
-constexpr char kConfigProjectMPresetLocked[] = "projectM.presetLocked";
-constexpr char kConfigProjectMShuffleEnabled[] = "projectM.shuffleEnabled";
-constexpr char kConfigProjectMSkipToDropped[] = "projectM.skipToDropped";
-constexpr char kConfigProjectMDroppedFolderOverride[] = "projectM.droppedFolderOverride";
-constexpr char kConfigProjectMDisplayDuration[] = "projectM.displayDuration";
-constexpr char kConfigProjectMTransitionDuration[] = "projectM.transitionDuration";
-constexpr char kConfigProjectMHardCutsEnabled[] = "projectM.hardCutsEnabled";
-constexpr char kConfigProjectMHardCutDuration[] = "projectM.hardCutDuration";
-constexpr char kConfigProjectMHardCutSensitivity[] = "projectM.hardCutSensitivity";
-constexpr char kConfigProjectMAspectCorrectionEnabled[] = "projectM.aspectCorrectionEnabled";
-constexpr char kConfigProjectMMeshX[] = "projectM.meshX";
-constexpr char kConfigProjectMMeshY[] = "projectM.meshY";
-constexpr char kConfigProjectMFps[] = "projectM.fps";
-constexpr char kConfigProjectMDisplayToasts[] = "projectM.displayToasts";
-constexpr char kConfigProjectMBeatSensitivity[] = "projectM.beatSensitivity";
-
-constexpr char kConfigWindowWidth[] = "window.width";
-constexpr char kConfigWindowHeight[] = "window.height";
-constexpr char kConfigWindowLeft[] = "window.left";
-constexpr char kConfigWindowTop[] = "window.top";
-constexpr char kConfigWindowOverridePosition[] = "window.overridePosition";
-constexpr char kConfigWindowMonitor[] = "window.monitor";
-constexpr char kConfigWindowBorderless[] = "window.borderless";
-constexpr char kConfigWindowFullscreen[] = "window.fullscreen";
-constexpr char kConfigWindowFullscreenExclusive[] = "window.fullscreen.exclusive";
-constexpr char kConfigWindowWaitForVerticalSync[] = "window.waitForVerticalSync";
-constexpr char kConfigWindowAdaptiveVerticalSync[] = "window.adaptiveVerticalSync";
-constexpr char kConfigWindowDisplayPresetNameInTitle[] = "window.displayPresetNameInTitle";
-constexpr char kConfigWindowUiScale[] = "window.uiScale";
-
-constexpr char kConfigFullscreenWidth[] = "fullscreen.width";
-constexpr char kConfigFullscreenHeight[] = "fullscreen.height";
-
-constexpr char kConfigAudioDevice[] = "audio.device";
 constexpr char kConfigAppUserConfigurationFile[] = "app.UserConfigurationFile";
 } // namespace
 
@@ -115,12 +23,16 @@ SettingsWindow::SettingsWindow(ProjectMGUI& gui)
     , _audioCapture(ProjectMSDLApplication::instance().getSubsystem<AudioCapture>())
     , _userConfiguration(ProjectMSDLApplication::instance().UserConfiguration())
     , _commandLineConfiguration(ProjectMSDLApplication::instance().CommandLineConfiguration())
+    , _helpers(_userConfiguration, _commandLineConfiguration, _changed, _pathChooser)
+    , _projectMTab(_helpers)
+    , _windowTab(_helpers)
+    , _audioTab(_helpers, _audioCapture)
 {
 }
 
 void SettingsWindow::Show()
 {
-    _userScale = static_cast<float>(_userConfiguration->getDouble(kConfigWindowUiScale, kUiScaleDefault));
+    _windowTab.OnShow();
     _visible = true;
 }
 
@@ -137,6 +49,7 @@ void SettingsWindow::Draw()
     std::string windowId = "Settings";
     if (_changed)
     {
+        // Surface unsaved state directly in the title bar so users can see it while switching tabs.
         windowId.append(" [CHANGED - NOT SAVED]");
     }
     windowId.append("###Settings");
@@ -146,9 +59,9 @@ void SettingsWindow::Draw()
     {
         if (ImGui::BeginTabBar("projectM Settings", tabBarFlags))
         {
-            DrawProjectMSettingsTab();
-            DrawWindowSettingsTab();
-            DrawAudioSettingsTab();
+            _projectMTab.Draw();
+            _windowTab.Draw();
+            _audioTab.Draw();
             DrawHelpTab();
 
             ImGui::EndTabBar();
@@ -164,231 +77,11 @@ void SettingsWindow::Draw()
         auto& selectedDirectory = _pathChooser.SelectedFiles();
         if (!selectedDirectory.empty())
         {
+            // Persist the selected directory immediately; Save will write the full config to disk.
             _userConfiguration->setString(_pathChooser.Context(),
                                           Poco::Path(selectedDirectory.at(0).path()).makeDirectory().toString());
             _changed = true;
         }
-    }
-}
-
-void SettingsWindow::DrawProjectMSettingsTab()
-{
-    if (ImGui::BeginTabItem("projectM"))
-    {
-        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
-        {
-            ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
-            ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kChooseColumnWidth);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kResetColumnWidth);
-            ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Preset Path", "Path to search for preset files if no playlist is loaded.");
-            PathSetting(kConfigProjectMPresetPath);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Texture Path", "Path to search for texture/image files requested by presets.");
-            PathSetting(kConfigProjectMTexturePath);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Display projectM Logo Preset",
-                             "If enabled, the projectM logo preset is shown on startup.");
-            BooleanSetting(kConfigProjectMEnableSplash, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Lock Preset", "If enabled, presets will not be switched automatically.");
-            BooleanSetting(kConfigProjectMPresetLocked, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Shuffle Presets", "Selects presets randomly from the current playlist.");
-            BooleanSetting(kConfigProjectMShuffleEnabled, true);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Skip To Dropped Presets",
-                             "If enabled, will skip to the new presets when preset(s) are dropped onto the window and added to the playlist");
-            BooleanSetting(kConfigProjectMSkipToDropped, true);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Dropped Folder Overrides Playlist",
-                             "When dropping a folder, clear the playlist and add all presets from the folder.");
-            BooleanSetting(kConfigProjectMDroppedFolderOverride, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Preset Display Duration",
-                             "Time in seconds a preset will be displayed before it's switched.");
-            DoubleSetting(kConfigProjectMDisplayDuration, kPresetDisplayDurationDefault, kPresetDisplayDurationMin,
-                          kPresetDisplayDurationMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Preset Transition Duration",
-                             "Time in seconds it takes to transition softly from one preset to another.");
-            DoubleSetting(kConfigProjectMTransitionDuration, kPresetTransitionDurationDefault,
-                          kPresetTransitionDurationMin, kPresetTransitionDurationMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Enable Hard Cuts",
-                             "Enables beat-driven, fast preset changes.\nSensitivity and earliest switch time can be configured separately.");
-            BooleanSetting(kConfigProjectMHardCutsEnabled, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Hard Cut Duration",
-                             "Time in seconds before a preset will be switched at\nthe earliest on hard cuts. If larger than display duration,\nhard cuts won't happen at all.");
-            DoubleSetting(kConfigProjectMHardCutDuration, kHardCutDurationDefault, kHardCutDurationMin,
-                          kHardCutDurationMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Hard Cut Threshold",
-                             "Volume difference between measurements required to trigger a hard cut.\nHigher values mean fewer hard cuts.");
-            DoubleSetting(kConfigProjectMHardCutSensitivity, kHardCutSensitivityDefault,
-                          kHardCutSensitivityMin, kHardCutSensitivityMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Aspect Correction",
-                             "Enables aspect ration correction in presets.\nOnly affects presets using the aspect ratio variables.");
-            BooleanSetting(kConfigProjectMAspectCorrectionEnabled, true);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Per-Point Mesh Size X/Y",
-                             "Size of the per-point transformation grid.\nHigher values produce better quality, but require exponentially more CPU time to calculate.\nMilkdrop's default is 48x32.");
-            IntegerSettingVec(kConfigProjectMMeshX, kConfigProjectMMeshY, kMeshDefaultX, kMeshDefaultY, kMeshSizeMin,
-                              kMeshSizeMax);
-
-            ImGui::EndTable();
-        }
-        ImGui::EndTabItem();
-    }
-}
-
-void SettingsWindow::DrawWindowSettingsTab()
-{
-    if (ImGui::BeginTabItem("Window / Rendering"))
-    {
-        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
-        {
-            ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
-            ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kChooseColumnWidth);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kResetColumnWidth);
-            ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Startup Window Placement",
-                             "Initial window placement options when starting projectM.\nClick the button to copy the current window size, position and display to the settings.");
-            ImGui::TableSetColumnIndex(1);
-            if (ImGui::Button("Use Current Size and Position"))
-            {
-                auto& renderingWindow = Poco::Util::Application::instance().getSubsystem<SDLRenderingWindow>();
-                int x;
-                int y;
-
-                renderingWindow.GetWindowSize(x, y);
-                _userConfiguration->setInt(kConfigWindowWidth, x);
-                _userConfiguration->setInt(kConfigWindowHeight, y);
-
-                renderingWindow.GetWindowPosition(x, y, true);
-                _userConfiguration->setInt(kConfigWindowLeft, x);
-                _userConfiguration->setInt(kConfigWindowTop, y);
-
-                _userConfiguration->setBool(kConfigWindowOverridePosition, true);
-                _userConfiguration->setInt(kConfigWindowMonitor, renderingWindow.GetCurrentDisplay() + 1);
-            }
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Window Size",
-                             "Initial window size when starting projectM.\nThis might or might not include the window decoration, depending on the OS.");
-            IntegerSettingVec(kConfigWindowWidth, kConfigWindowHeight, kDefaultWindowWidth, kDefaultWindowHeight,
-                              kWindowSizeMin, kWindowSizeMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Window Position",
-                             "Initial window position when starting projectM.\nThe coordinates are relative to the current monitor.");
-            WindowPositionSetting();
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Monitor",
-                             "Use 0 to let the OS select the monitor, or any positive number to select a specific monitor.\nIf the number is larger than the number of connected monitors, the last available one will be used.");
-            IntegerSetting(kConfigWindowMonitor, kDefaultMonitor, kMonitorMin, kMonitorMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Borderless Window",
-                             "Don't display the window border and title bar if the OS supports it.\nCan make the window immovable.");
-            BooleanSetting(kConfigWindowBorderless, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Start Fullscreen", "Start projectM in fullscreen mode");
-            BooleanSetting(kConfigWindowFullscreen, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Exclusive Fullscreen Mode",
-                             "Use exclusive mode if fullscreen, e.g. not as a borderless window.\nThis can improve performance, but may switch the desktop resolution!");
-            BooleanSetting(kConfigWindowFullscreenExclusive, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Exclusive Mode Resolution",
-                             "Resolution to change to in exclusive fullscreen mode.\nNot all graphics driver support arbitrary resolution and will use the next-best supported one.");
-            IntegerSettingVec(kConfigFullscreenWidth, kConfigFullscreenHeight, kDefaultWindowWidth, kDefaultWindowHeight,
-                              kFullscreenMin, kWindowSizeMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Target FPS",
-                             "Limit frames rendered per second to the given FPS value.\nNOTE: A value of 0 will NOT limit FPS and render at either VSync or unlimited pace, possibly using all CPU/GPU resources.");
-            IntegerSetting(kConfigProjectMFps, kDefaultFps, kFpsMin, kFpsMax);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Wait for Vertical Sync",
-                             "Wait for vertical sync interval before displaying the next frame.\nThis will limit max FPS to the vertical sync frequency but prevents tearing.");
-            BooleanSetting(kConfigWindowWaitForVerticalSync, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("  Use Adaptive Sync",
-                             "Tries to use adaptive vertical sync if vertical sync is enabled.\nWhen using a monitor capable of adaptive sync, setting FPS to 0 gives the best results.");
-            BooleanSetting(kConfigWindowAdaptiveVerticalSync, false);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Preset Name in Title",
-                             "Controls displaying the current preset name after the application name in the window title.");
-            BooleanSetting(kConfigWindowDisplayPresetNameInTitle, true);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Display Toast Messages",
-                             "Controls displaying toast messages/notifications, e.g. when changing the audio device.");
-            BooleanSetting(kConfigProjectMDisplayToasts, true);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("UI Scaling Factor", "Multiplies the default UI/font size with the given factor.");
-            DoubleSettingWithApply(kConfigWindowUiScale, kUiScaleDefault, kUiScaleMin, kUiScaleMax, _userScale);
-
-            ImGui::EndTable();
-        }
-        ImGui::EndTabItem();
-    }
-}
-
-void SettingsWindow::DrawAudioSettingsTab()
-{
-    if (ImGui::BeginTabItem("Audio"))
-    {
-        if (ImGui::BeginTable("projectM", kSettingsTableColumnCount, ImGuiTableFlags_None))
-        {
-            ImGui::TableSetupColumn("##desc", ImGuiTableColumnFlags_WidthFixed, .0f);
-            ImGui::TableSetupColumn("##setting", ImGuiTableColumnFlags_WidthStretch, .0f);
-            ImGui::TableSetupColumn("##choose", ImGuiTableColumnFlags_WidthFixed, kAudioChooseColumnWidth);
-            ImGui::TableSetupColumn("##reset", ImGuiTableColumnFlags_WidthFixed, kAudioResetColumnWidth);
-            ImGui::TableSetupColumn("##override", ImGuiTableColumnFlags_WidthFixed, .0f);
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Audio Capturing Device", "The device to capture audio from.");
-            AudioDeviceSetting();
-
-            ImGui::TableNextRow();
-            LabelWithTooltip("Beat Sensitivity", "Beat detection multiplier.");
-            DoubleSetting(kConfigProjectMBeatSensitivity, kBeatSensitivityDefault, kBeatSensitivityMin,
-                          kBeatSensitivityMax);
-
-            ImGui::EndTable();
-        }
-        ImGui::EndTabItem();
     }
 }
 
@@ -430,6 +123,7 @@ void SettingsWindow::SaveButton()
     {
         try
         {
+            // The user config file path can be injected by command-line options.
             auto configFile = _commandLineConfiguration->getString(kConfigAppUserConfigurationFile, "");
             if (!configFile.empty())
             {
@@ -451,275 +145,4 @@ void SettingsWindow::SaveButton()
 
         _changed = false;
     }
-}
-
-void SettingsWindow::LabelWithTooltip(const std::string& label, const std::string& tooltipText)
-{
-    ImGui::TableSetColumnIndex(0);
-
-    ImGui::TextUnformatted(label.c_str());
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted(tooltipText.c_str());
-        ImGui::EndTooltip();
-    }
-}
-
-void SettingsWindow::PathSetting(const std::string& property)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    auto path = _userConfiguration->getString(property, "");
-    char pathBuffer[kPathBufferSize]{};
-    strncpy(pathBuffer, path.c_str(), std::min<std::size_t>(kPathBufferCopyLimit, path.size()));
-
-    ImGui::SetNextItemWidth(-1);
-    if (ImGui::InputText(std::string("##path_" + property).c_str(), &pathBuffer[0], IM_ARRAYSIZE(pathBuffer),
-                         ImGuiInputTextFlags_EnterReturnsTrue))
-    {
-        _userConfiguration->setString(property, std::string(pathBuffer));
-        _changed = true;
-    }
-
-    ImGui::TableSetColumnIndex(2);
-
-    ImGui::PushID(std::string(property + "_ChoosePathButton").c_str());
-    if (ImGui::Button("..."))
-    {
-        _pathChooser.CurrentDirectory(path);
-        _pathChooser.Title("Select directory");
-        _pathChooser.Context(property);
-        _pathChooser.Show();
-    }
-    ImGui::PopID();
-
-    DrawResetAndOverrideMarker(property);
-}
-
-
-void SettingsWindow::BooleanSetting(const std::string& property, bool defaultValue)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    auto value = _userConfiguration->getBool(property, defaultValue);
-
-    if (ImGui::Checkbox(std::string("##boolean_" + property).c_str(), &value))
-    {
-        _userConfiguration->setBool(property, value);
-        _changed = true;
-    }
-
-    DrawResetAndOverrideMarker(property);
-}
-
-void SettingsWindow::IntegerSetting(const std::string& property, int defaultValue, int min, int max)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    auto value = _userConfiguration->getInt(property, defaultValue);
-
-    if (ImGui::SliderInt(std::string("##integer_" + property).c_str(), &value, min, max))
-    {
-        _userConfiguration->setInt(property, value);
-        _changed = true;
-    }
-
-    DrawResetAndOverrideMarker(property);
-}
-
-void SettingsWindow::IntegerSettingVec(const std::string& property1, const std::string& property2, int defaultValue1,
-                                       int defaultValue2, int min, int max)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    int values[2] = {
-        _userConfiguration->getInt(property1, defaultValue1),
-        _userConfiguration->getInt(property2, defaultValue2)};
-
-    if (ImGui::SliderInt2(std::string("##integer_" + property1 + property2).c_str(), values, min, max))
-    {
-        _userConfiguration->setInt(property1, values[0]);
-        _userConfiguration->setInt(property2, values[1]);
-        _changed = true;
-    }
-
-    DrawResetAndOverrideMarker(property1, property2);
-}
-
-void SettingsWindow::DoubleSetting(const std::string& property, double defaultValue, double min, double max)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    auto value = static_cast<float>(_userConfiguration->getDouble(property, defaultValue));
-
-    if (ImGui::SliderFloat(std::string("##double_" + property).c_str(), &value, static_cast<float>(min),
-                           static_cast<float>(max)))
-    {
-        _userConfiguration->setDouble(property, value);
-        _changed = true;
-    }
-
-    DrawResetAndOverrideMarker(property);
-}
-
-void SettingsWindow::DoubleSettingWithApply(const std::string& property, double defaultValue, double min, double max,
-                                            float& tempValue)
-{
-    ImGui::TableSetColumnIndex(1);
-
-    ImGui::SliderFloat(std::string("##double_" + property).c_str(), &tempValue, static_cast<float>(min),
-                       static_cast<float>(max));
-
-    ImGui::SameLine();
-
-    ImGui::PushID(std::string(property + "_ApplyButton").c_str());
-    if (ImGui::Button("Apply"))
-    {
-        _userConfiguration->setDouble(property, tempValue);
-        _changed = true;
-    }
-    ImGui::PopID();
-
-    if (DrawResetAndOverrideMarker(property))
-    {
-        tempValue = static_cast<float>(_userConfiguration->getDouble(property, defaultValue));
-    }
-}
-
-void SettingsWindow::WindowPositionSetting()
-{
-    ImGui::TableSetColumnIndex(1);
-
-    bool positionIsOverridden = _userConfiguration->getBool(kConfigWindowOverridePosition, false);
-
-    if (ImGui::Checkbox("##window_set_pos", &positionIsOverridden))
-    {
-        _userConfiguration->setBool(kConfigWindowOverridePosition, positionIsOverridden);
-    }
-
-    if (positionIsOverridden)
-    {
-        ImGui::SameLine();
-
-        int values[2] = {
-            _userConfiguration->getInt(kConfigWindowLeft, 0),
-            _userConfiguration->getInt(kConfigWindowTop, 0)};
-
-        if (ImGui::SliderInt2("##window_pos", values, -kWindowPositionLimit, kWindowPositionLimit))
-        {
-            _userConfiguration->setInt(kConfigWindowLeft, values[0]);
-            _userConfiguration->setInt(kConfigWindowTop, values[1]);
-            _changed = true;
-        }
-    }
-
-    DrawResetAndOverrideMarker(kConfigWindowOverridePosition, "", kConfigWindowLeft, kConfigWindowTop);
-}
-
-void SettingsWindow::AudioDeviceSetting()
-{
-    ImGui::TableSetColumnIndex(1);
-
-    auto devices = _audioCapture.AudioDeviceList();
-    auto currentIndex = _audioCapture.AudioDeviceIndex();
-
-    ImGui::SetNextItemWidth(-1);
-    if (ImGui::BeginCombo("##audiodevice", devices.at(currentIndex).c_str(), 0))
-    {
-        for (const auto& device : devices)
-        {
-            bool isSelected = device.first == currentIndex;
-
-            if (ImGui::Selectable(device.second.c_str(), isSelected))
-            {
-                _audioCapture.AudioDeviceIndex(device.first);
-                if (device.first == -1)
-                {
-                    _userConfiguration->setInt(kConfigAudioDevice, -1);
-                }
-                else
-                {
-                    _userConfiguration->setString(kConfigAudioDevice, device.second);
-                }
-                _changed = true;
-            }
-
-            if (isSelected)
-            {
-                ImGui::SetItemDefaultFocus();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    DrawResetAndOverrideMarker(kConfigAudioDevice);
-}
-
-bool SettingsWindow::ResetButton(const std::string& property1, const std::string& property2)
-{
-    if (!_userConfiguration->has(property1) && (property2.empty() || !_userConfiguration->has(property2)))
-    {
-        return false;
-    }
-
-    ImGui::TableSetColumnIndex(3);
-
-    bool pressed{false};
-
-    ImGui::PushID(std::string(property1 + property2 + "_ResetButton").c_str());
-    if (ImGui::Button("Reset"))
-    {
-        _userConfiguration->remove(property1);
-        if (!property2.empty())
-        {
-            _userConfiguration->remove(property2);
-        }
-        _changed = true;
-        pressed = true;
-    }
-    ImGui::PopID();
-
-    return pressed;
-}
-
-void SettingsWindow::OverriddenSettingMarker()
-{
-    ImGui::TableSetColumnIndex(4);
-
-    ImGui::TextColored(ImVec4(1, 0, 0, 1), "[!]");
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::BeginTooltip();
-        ImGui::TextUnformatted("Value passed as command line argument.");
-        ImGui::TextUnformatted("The value configured here will only be used if NOT overridden via the command line.");
-        ImGui::EndTooltip();
-    }
-}
-
-bool SettingsWindow::DrawResetAndOverrideMarker(const std::string& resetKey1, const std::string& resetKey2,
-                                                const std::string& overrideKey1, const std::string& overrideKey2)
-{
-    // Call the reset button and capture the pressed state
-    bool resetPressed = ResetButton(resetKey1, resetKey2);
-
-    // Determine which keys to check for override marker
-    std::string checkKey1 = overrideKey1.empty() ? resetKey1 : overrideKey1;
-    std::string checkKey2 = overrideKey2.empty() ? resetKey2 : overrideKey2;
-
-    // Check if any of the keys are overridden by command line
-    bool isOverridden = _commandLineConfiguration->has(checkKey1);
-    if (!checkKey2.empty())
-    {
-        isOverridden = isOverridden || _commandLineConfiguration->has(checkKey2);
-    }
-
-    // Draw the override marker if needed
-    if (isOverridden)
-    {
-        OverriddenSettingMarker();
-    }
-
-    return resetPressed;
 }

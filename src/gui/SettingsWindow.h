@@ -1,11 +1,13 @@
 #pragma once
 
+#include "AudioSettingsTab.h"
 #include "FileChooser.h"
+#include "ProjectMSettingsTab.h"
+#include "SettingsUIHelpers.h"
+#include "WindowSettingsTab.h"
 
 #include <Poco/Util/MapConfiguration.h>
 #include <Poco/Util/PropertyFileConfiguration.h>
-
-#include <string>
 
 class AudioCapture;
 class ProjectMGUI;
@@ -15,140 +17,31 @@ class SettingsWindow
 public:
     SettingsWindow() = delete;
 
+    /**
+     * @brief Creates the settings window coordinator.
+     */
     explicit SettingsWindow(ProjectMGUI& gui);
 
     /**
-     * @brief Displays the settings window.
+     * @brief Shows the settings window and prepares tab state.
      */
     void Show();
 
     /**
-     * @brief Draws the settings window.
+     * @brief Draws the settings window and delegates tab rendering.
      */
     void Draw();
 
 private:
     /**
-     * @brief Draws the settings tab.
-     */
-    void DrawProjectMSettingsTab();
-
-    /**
-     * @brief Draws the window/rendering settings tab.
-     */
-    void DrawWindowSettingsTab();
-
-    /**
-     * @brief Draws the audio settings tab.
-     */
-    void DrawAudioSettingsTab();
-
-    /**
-     * @brief Draws the help tab.
+     * @brief Draws the static help tab content.
      */
     void DrawHelpTab() const;
 
     /**
-     * @brief Displays the save button.
+     * @brief Draws and handles the save button action.
      */
     void SaveButton();
-
-    /**
-     * @brief Displays a setting name laben and shows a tooltip if hovered.
-     * @param label The label text.
-     * @param tooltipText The tooltip displayed when hovering the setting name.
-     */
-    void LabelWithTooltip(const std::string& label, const std::string& tooltipText);
-
-    /**
-     * @brief Displays an editable path field, with a directory chooser button.
-     * @param property The property name in the config.
-     */
-    void PathSetting(const std::string& property);
-
-    /**
-     * @brief Displays a checkbox.
-     * @param property The property name in the config.
-     * @param defaultValue Default value for the property if not set.
-     */
-    void BooleanSetting(const std::string& property, bool defaultValue);
-
-    /**
-     * @brief Displays a slider to set an integer min/max value.
-     * @param property The property name in the config.
-     * @param defaultValue Default value for the property if not set.
-     * @param min Minimum slider value.
-     * @param max Maximum slider value.
-     */
-    void IntegerSetting(const std::string& property, int defaultValue, int min, int max);
-
-    /**
-     * @brief Displays a slider to set two integer min/max values.
-     * @param property1 The first property name in the config.
-     * @param property2 The second property name in the config.
-     * @param defaultValue1 Default value for the first property if not set.
-     * @param defaultValue2 Default value for the second property if not set.
-     * @param min Minimum slider value.
-     * @param max Maximum slider value.
-     */
-    void IntegerSettingVec(const std::string& property1, const std::string& property2,
-                           int defaultValue1, int defaultValue2,
-                           int min, int max);
-
-    /**
-     * @brief Displays a slider to set a double min/max value.
-     * @param property The property name in the config.
-     * @param defaultValue Default value for the property if not set.
-     * @param min Minimum slider value.
-     * @param max Maximum slider value.
-     */
-    void DoubleSetting(const std::string& property, double defaultValue, double min, double max);
-
-    /**
-     * @brief Displays a slider to select a double min/max value and an "Apply" button to set the value.
-     * Useful if the slider affects UI rendering (e.g. scaling).
-     * @param property The property name in the config.
-     * @param defaultValue Default value for the property if not set.
-     * @param min Minimum slider value.
-     * @param max Maximum slider value.
-     * @param tempValue The storage location for the displayed slider value.
-     */
-    void DoubleSettingWithApply(const std::string& property, double defaultValue, double min, double max,
-                                float& tempValue);
-
-    /**
-     * @brief Displays a checkbox to override the window startup position, and if this is selected, displays two sliders.
-     */
-    void WindowPositionSetting();
-
-    /**
-     * @brief Displays a combobox with available audio devices.
-     */
-    void AudioDeviceSetting();
-
-    /**
-     * @brief Displays a reset button and removes the property from the UI map if clicked.
-     * @param property1 First property to reset.
-     * @param property2 Optional second property to reset.
-     * @return true if the button was pressed, false otherwise.
-     */
-    bool ResetButton(const std::string& property1, const std::string& property2 = "");
-
-    /**
-     * @brief Displays a red note and a tooltip when hovered explaining the setting can't be changed now.
-     */
-    void OverriddenSettingMarker();
-
-    /**
-     * @brief Displays a reset button and override marker for one or two properties.
-     * @param resetKey1 Primary property to reset.
-     * @param resetKey2 Optional second property to reset.
-     * @param overrideKey1 Optional property to check for override marker (defaults to resetKey1 if empty).
-     * @param overrideKey2 Optional second property to check for override marker.
-     * @return true if reset button was pressed, false otherwise.
-     */
-    bool DrawResetAndOverrideMarker(const std::string& resetKey1, const std::string& resetKey2 = "",
-                                    const std::string& overrideKey1 = "", const std::string& overrideKey2 = "");
 
     ProjectMGUI& _gui; //!< The GUI subsystem.
     AudioCapture& _audioCapture; //!< The audio capture subsystem.
@@ -161,5 +54,8 @@ private:
 
     FileChooser _pathChooser{FileChooser::Mode::Directory}; //!< The file chooser dialog to select preset and texture paths.
 
-    float _userScale{1.0f}; //!< Temporary value for UI scale
+    SettingsUIHelpers _helpers;
+    ProjectMSettingsTab _projectMTab;
+    WindowSettingsTab _windowTab;
+    AudioSettingsTab _audioTab;
 };
