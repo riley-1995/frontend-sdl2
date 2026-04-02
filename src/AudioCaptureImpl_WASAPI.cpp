@@ -398,6 +398,11 @@ bool AudioCaptureImpl::SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMD
         if (FAILED(result))
         {
             poco_error_f1(_logger, "IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: result = 0x%08?x", result);
+            if (*device)
+            {
+                (*device)->Release();
+                *device = nullptr;
+            }
             return false;
         }
 
@@ -413,6 +418,11 @@ bool AudioCaptureImpl::SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMD
         if (FAILED(result))
         {
             poco_error_f1(_logger, "IMMDeviceEnumerator::GetDevice failed: result = 0x%08?x", result);
+            if (*device)
+            {
+                (*device)->Release();
+                *device = nullptr;
+            }
             return false;
         }
     }
@@ -431,6 +441,11 @@ bool AudioCaptureImpl::SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMD
     if (!OpenAudioDevice(*device, useLoopback))
     {
         _isCapturing = false;
+        if (*device)
+        {
+            CloseAudioDevice(*device);
+            *device = nullptr;
+        }
         return false;
     }
 
