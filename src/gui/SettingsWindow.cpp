@@ -592,7 +592,7 @@ void SettingsWindow::AudioDeviceSetting()
         {
             bool isSelected = device.first == currentIndex;
 
-            if (ImGui::Selectable(device.second.c_str(), "", isSelected))
+            if (ImGui::Selectable(device.second.c_str(), isSelected))
             {
                 _audioCapture.AudioDeviceIndex(device.first);
                 if (device.first == -1)
