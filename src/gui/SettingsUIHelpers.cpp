@@ -53,6 +53,7 @@ void SettingsUIHelpers::PathSetting(const std::string& property)
 
     auto path = _userConfiguration->getString(property, "");
     char pathBuffer[kPathBufferSize]{};
+    // Copy with explicit bound; InputText expects a mutable fixed-size buffer.
     strncpy(pathBuffer, path.c_str(), std::min<std::size_t>(kPathBufferCopyLimit, path.size()));
 
     ImGui::SetNextItemWidth(-1);
@@ -169,6 +170,7 @@ void SettingsUIHelpers::DoubleSettingWithApply(const std::string& property, doub
 
 bool SettingsUIHelpers::ResetButton(const std::string& property1, const std::string& property2)
 {
+    // Hide Reset when both values already come from defaults/factory config.
     if (!_userConfiguration->has(property1) && (property2.empty() || !_userConfiguration->has(property2)))
     {
         return false;
@@ -211,17 +213,22 @@ void SettingsUIHelpers::OverriddenSettingMarker()
 bool SettingsUIHelpers::DrawResetAndOverrideMarker(const std::string& resetKey1, const std::string& resetKey2,
                                                    const std::string& overrideKey1, const std::string& overrideKey2)
 {
+    // Call the reset button and capture the pressed state
     bool resetPressed = ResetButton(resetKey1, resetKey2);
 
+    // Determine which keys to check for override marker
     std::string checkKey1 = overrideKey1.empty() ? resetKey1 : overrideKey1;
     std::string checkKey2 = overrideKey2.empty() ? resetKey2 : overrideKey2;
 
+    // Check if any of the keys are overridden by command line
     bool isOverridden = _commandLineConfiguration->has(checkKey1);
     if (!checkKey2.empty())
     {
+        // Vector settings may map to two config keys (for example X/Y or width/height).
         isOverridden = isOverridden || _commandLineConfiguration->has(checkKey2);
     }
 
+    // Draw the override marker if needed
     if (isOverridden)
     {
         OverriddenSettingMarker();

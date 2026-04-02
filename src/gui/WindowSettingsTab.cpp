@@ -43,6 +43,7 @@ WindowSettingsTab::WindowSettingsTab(SettingsUIHelpers& helpers)
 
 void WindowSettingsTab::OnShow()
 {
+    // Stage UI scale in a temporary value so users can preview slider changes before pressing Apply.
     _userScale = static_cast<float>(_helpers.userConfiguration()->getDouble(kConfigWindowUiScale, kUiScaleDefault));
 }
 
@@ -68,6 +69,7 @@ void WindowSettingsTab::Draw()
                 int x;
                 int y;
 
+                // Snapshot current runtime placement into startup config keys.
                 renderingWindow.GetWindowSize(x, y);
                 _helpers.userConfiguration()->setInt(kConfigWindowWidth, x);
                 _helpers.userConfiguration()->setInt(kConfigWindowHeight, y);
@@ -159,6 +161,7 @@ void WindowSettingsTab::WindowPositionSetting()
 
     if (ImGui::Checkbox("##window_set_pos", &positionIsOverridden))
     {
+        // Toggle whether manual startup position values should be applied at launch.
         _helpers.userConfiguration()->setBool(kConfigWindowOverridePosition, positionIsOverridden);
     }
 

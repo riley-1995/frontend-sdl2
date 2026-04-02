@@ -49,6 +49,7 @@ void SettingsWindow::Draw()
     std::string windowId = "Settings";
     if (_changed)
     {
+        // Surface unsaved state directly in the title bar so users can see it while switching tabs.
         windowId.append(" [CHANGED - NOT SAVED]");
     }
     windowId.append("###Settings");
@@ -76,6 +77,7 @@ void SettingsWindow::Draw()
         auto& selectedDirectory = _pathChooser.SelectedFiles();
         if (!selectedDirectory.empty())
         {
+            // Persist the selected directory immediately; Save will write the full config to disk.
             _userConfiguration->setString(_pathChooser.Context(),
                                           Poco::Path(selectedDirectory.at(0).path()).makeDirectory().toString());
             _changed = true;
@@ -121,6 +123,7 @@ void SettingsWindow::SaveButton()
     {
         try
         {
+            // The user config file path can be injected by command-line options.
             auto configFile = _commandLineConfiguration->getString(kConfigAppUserConfigurationFile, "");
             if (!configFile.empty())
             {

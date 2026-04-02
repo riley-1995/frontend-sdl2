@@ -71,6 +71,7 @@ void AudioSettingsTab::AudioDeviceSetting()
                 _audioCapture.AudioDeviceIndex(device.first);
                 if (device.first == -1)
                 {
+                    // -1 is the backend sentinel for automatic/default capture device.
                     _helpers.userConfiguration()->setInt(kConfigAudioDevice, -1);
                 }
                 else
