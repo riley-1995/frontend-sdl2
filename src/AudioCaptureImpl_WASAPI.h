@@ -210,6 +210,49 @@ protected:
     void CaptureThread();
 
     /**
+     * @brief Initializes the capture thread environment.
+     *
+     * Sets up COM and creates the device enumerator with notification callbacks.
+     *
+     * @return Pointer to the initialized device enumerator, or nullptr on failure.
+     */
+    IMMDeviceEnumerator* InitializeCaptureThread();
+
+    /**
+     * @brief Selects and opens the appropriate audio device for capture.
+     *
+     * @param enumerator The device enumerator to use for device selection.
+     * @param[out] device Pointer to store the selected device.
+     * @param[out] deviceName String to store the selected device name.
+     * @param[out] useLoopback Boolean to store whether loopback mode should be used.
+     * @return True if device was successfully selected and opened, false otherwise.
+     */
+    bool SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMDevice** device, std::string& deviceName, bool& useLoopback);
+
+    /**
+     * @brief Performs the main audio capture loop.
+     *
+     * Waits for buffer fill events and processes audio packets.
+     */
+    void PerformAudioCapture();
+
+    /**
+     * @brief Closes the current audio device.
+     *
+     * @param device The device to close.
+     */
+    void CloseDeviceAndCleanup(IMMDevice* device);
+
+    /**
+     * @brief Cleans up the capture thread environment.
+     *
+     * Unregisters callbacks, releases enumerator, and uninitializes COM.
+     *
+     * @param enumerator The device enumerator to clean up.
+     */
+    void CleanupCaptureThread(IMMDeviceEnumerator* enumerator);
+
+    /**
      * @brief Creates a new MMDeviceEnumerator interface.
      * @return A pointer to the created MMDeviceEnumerator or nullptr if the creation failed.
      */
