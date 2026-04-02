@@ -33,12 +33,21 @@ add_library(ProjectMSDL-GUI STATIC
         PresetSelection.h
         ProjectMGUI.cpp
         ProjectMGUI.h
+        AudioSettingsTab.cpp
+        AudioSettingsTab.h
+        ProjectMSettingsTab.cpp
+        ProjectMSettingsTab.h
+        SettingsConfigKeys.h
+        SettingsUIHelpers.cpp
+        SettingsUIHelpers.h
         SettingsWindow.cpp
         SettingsWindow.h
         SystemBrowser.cpp
         SystemBrowser.h
         ToastMessage.cpp
         ToastMessage.h
+        WindowSettingsTab.cpp
+        WindowSettingsTab.h
         )
 
 target_compile_definitions(ProjectMSDL-GUI
