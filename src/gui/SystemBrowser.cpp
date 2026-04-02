@@ -14,7 +14,7 @@
 
 void SystemBrowser::OpenURL(const std::string& url)
 {
-#ifdef __MSC_VER__
+#ifdef _WIN32
     ShellExecuteA(nullptr, nullptr, url.c_str(), nullptr, nullptr, SW_SHOW);
 #endif
 #ifdef __linux__

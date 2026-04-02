@@ -210,39 +210,29 @@ std::vector<AudioCaptureImpl::AudioDevice> AudioCaptureImpl::GetAudioDeviceList(
     return deviceList;
 }
 
-bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
+// Helper: Stage 1 - Activate device and get IAudioClient interface
+HRESULT AudioCaptureImpl::SelectAndActivateDevice(IMMDevice* device)
 {
-    // activate an IAudioClient
-    HRESULT result = device->Activate(__uuidof(IAudioClient),
-                                      CLSCTX_ALL,
-                                      nullptr,
-                                      reinterpret_cast<void**>(&_audioClient));
+    HRESULT result = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&_audioClient));
     if (FAILED(result))
     {
         poco_error_f1(_logger, "IMMDevice::Activate(IAudioClient) failed: result = 0x%08?x", result);
-        return false;
     }
+    return result;
+}
 
-    // get the default device periodicity
-    REFERENCE_TIME hnsDefaultDevicePeriod;
-    result = _audioClient->GetDevicePeriod(&hnsDefaultDevicePeriod,
-                                           nullptr);
-    if (FAILED(result))
-    {
-        poco_error_f1(_logger, "IAudioClient::GetDevicePeriod failed: result = 0x%08?x", result);
-        return false;
-    }
-
-    // get the default device format
-    WAVEFORMATEX* pwfx;
-    result = _audioClient->GetMixFormat(&pwfx);
+// Helper: Stage 2 - Retrieve and validate audio format
+int AudioCaptureImpl::NegotiateAudioFormat()
+{
+    WAVEFORMATEX* pwfx = nullptr;
+    HRESULT result = _audioClient->GetMixFormat(&pwfx);
     if (FAILED(result))
     {
         poco_error_f1(_logger, "IAudioClient::GetMixFormat failed: result = 0x%08?x", result);
-        return false;
+        return -1;
     }
 
-    // Should default to float32 data, but some devices might deliver other formats.
+    // Validate format is float (IEEE float or WAVE_FORMAT_EXTENSIBLE with float subformat)
     if (pwfx->wFormatTag != WAVE_FORMAT_IEEE_FLOAT)
     {
         auto extensibleFormat = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
@@ -250,18 +240,43 @@ bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
         {
             poco_error_f1(_logger, "IAudioClient::GetMixFormat returned non-float sample format: 0x%04?x", pwfx->wFormatTag);
             CoTaskMemFree(pwfx);
-            return false;
+            return -1;
         }
         else if (!IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, extensibleFormat->SubFormat))
         {
             poco_error_f1(_logger, "IAudioClient::GetMixFormat returned non-float extensible sub format: 0x%04?x", extensibleFormat->SubFormat);
             CoTaskMemFree(pwfx);
-            return false;
+            return -1;
         }
     }
 
-    _channels = pwfx->nChannels;
+    int channels = pwfx->nChannels;
+    CoTaskMemFree(pwfx);
+    return channels;
+}
 
+// Helper: Stage 3 - Initialize IAudioClient and get device period
+HRESULT AudioCaptureImpl::InitializeAudioClient(int channels, bool useLoopback)
+{
+    // Get the default device periodicity
+    REFERENCE_TIME hnsDefaultDevicePeriod;
+    HRESULT result = _audioClient->GetDevicePeriod(&hnsDefaultDevicePeriod, nullptr);
+    if (FAILED(result))
+    {
+        poco_error_f1(_logger, "IAudioClient::GetDevicePeriod failed: result = 0x%08?x", result);
+        return result;
+    }
+
+    // Get format again for Initialize call
+    WAVEFORMATEX* pwfx = nullptr;
+    result = _audioClient->GetMixFormat(&pwfx);
+    if (FAILED(result))
+    {
+        poco_error_f1(_logger, "IAudioClient::GetMixFormat failed (second call): result = 0x%08?x", result);
+        return result;
+    }
+
+    // Initialize the audio client
     // Can't use event-driven processing in loopback mode, but as we
     // get a "fill buffer" request before rendering each frame, this isn't
     // really necessary anyway.
@@ -277,35 +292,96 @@ bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
 
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->Initialize failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::Initialize failed: result = 0x%08?x", result);
     }
+    return result;
+}
 
-    // activate an IAudioCaptureClient
-    result = _audioClient->GetService(
+// Helper: Stage 4 - Setup capture client and start stream
+HRESULT AudioCaptureImpl::SetupCaptureAndStream()
+{
+    // Get the capture client interface
+    HRESULT result = _audioClient->GetService(
         __uuidof(IAudioCaptureClient),
-        (void**) &_audioCaptureClient);
+        (void**)&_audioCaptureClient);
 
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->GetService failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::GetService failed: result = 0x%08?x", result);
+        return result;
     }
 
+    // Start the audio stream
     result = _audioClient->Start();
     if (FAILED(result))
     {
-        poco_error_f1(_logger, "IAudioClient->Start failed: result = 0x%08?x", result);
-        return false;
+        poco_error_f1(_logger, "IAudioClient::Start failed: result = 0x%08?x", result);
+    }
+    return result;
+}
+
+bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
+{
+    // Stage 1: Activate device and get IAudioClient
+    HRESULT result = SelectAndActivateDevice(device);
+    if (FAILED(result))
+    {
+        goto cleanup;
+    }
+
+    // Stage 2: Negotiate audio format
+    int channels = NegotiateAudioFormat();
+    if (channels <= 0)
+    {
+        goto cleanup;
+    }
+    _channels = channels;
+
+    // Stage 3: Initialize audio client
+    result = InitializeAudioClient(channels, useLoopback);
+    if (FAILED(result))
+    {
+        goto cleanup;
+    }
+
+    // Stage 4: Setup capture client and start stream
+    result = SetupCaptureAndStream();
+    if (FAILED(result))
+    {
+        goto cleanup;
     }
 
     return true;
+
+cleanup:
+    // Consistent cleanup on any failure: stops stream and releases resources
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Cleaning up after failed device initialization.");
+        _audioClient->Stop();
+    }
+    if (_audioCaptureClient)
+    {
+        poco_trace(_logger, "Releasing audio capture client (cleanup).");
+        _audioCaptureClient->Release();
+        _audioCaptureClient = nullptr;
+    }
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Releasing audio client (cleanup).");
+        _audioClient->Release();
+        _audioClient = nullptr;
+    }
+    return false;
 }
 
 void AudioCaptureImpl::CloseAudioDevice(IMMDevice* device)
 {
-    poco_trace(_logger, "Stopping audio client.");
-    _audioClient->Stop();
+    if (_audioClient)
+    {
+        poco_trace(_logger, "Stopping audio client.");
+        _audioClient->Stop();
+    }
 
     if (_audioCaptureClient)
     {
@@ -332,6 +408,38 @@ void AudioCaptureImpl::CaptureThread()
 {
     poco_debug(_logger, "Audio capture thread starting.");
 
+    IMMDeviceEnumerator* enumerator{InitializeCaptureThread()};
+    if (enumerator == nullptr)
+    {
+        return;
+    }
+
+    do
+    {
+        _restartCapturing = false;
+
+        IMMDevice* device{nullptr};
+        std::string deviceName;
+        bool useLoopback{false};
+
+        if (!SelectAndOpenDevice(enumerator, &device, deviceName, useLoopback))
+        {
+            continue;
+        }
+
+        PerformAudioCapture();
+        CloseDeviceAndCleanup(device);
+
+        poco_debug(_logger, "Audio device closed.");
+    } while (_restartCapturing);
+
+    CleanupCaptureThread(enumerator);
+
+    poco_debug(_logger, "Audio capture thread exiting.");
+}
+
+IMMDeviceEnumerator* AudioCaptureImpl::InitializeCaptureThread()
+{
     HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 
     if (FAILED(result))
@@ -351,118 +459,139 @@ void AudioCaptureImpl::CaptureThread()
     poco_trace(_logger, "Registering device callbacks.");
     enumerator->RegisterEndpointNotificationCallback(this);
 
-    do
+    return enumerator;
+}
+
+bool AudioCaptureImpl::SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMDevice** device, std::string& deviceName, bool& useLoopback)
+{
+    auto devices{GetAudioDeviceList(enumerator)};
+    useLoopback = true;
+
+    if (_currentAudioDeviceIndex == -1 || _currentAudioDeviceIndex >= devices.size())
     {
-        _restartCapturing = false;
-
-        auto devices{GetAudioDeviceList(enumerator)};
-        bool useLoopback{true};
-        std::string deviceName;
-
-        IMMDevice* device{nullptr};
-
-        if (_currentAudioDeviceIndex == -1 || _currentAudioDeviceIndex >= devices.size())
-        {
-            // Get the default render endpoint for opening it as a loopback device.
-            result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &device);
-            if (FAILED(result))
-            {
-                poco_error_f1(_logger, "IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: result = 0x%08?x", result);
-                break;
-            }
-
-            deviceName = _defaultDeviceName;
-        }
-        else
-        {
-            // Get a device by its ID according to the currently selected index.
-            useLoopback = devices.at(_currentAudioDeviceIndex).IsRenderDevice();
-            deviceName = devices.at(_currentAudioDeviceIndex).FriendlyName();
-            result = enumerator->GetDevice(devices.at(_currentAudioDeviceIndex).DeviceId(), &device);
-
-            if (FAILED(result))
-            {
-                poco_error_f1(_logger, "IMMDeviceEnumerator::GetDevice failed: result = 0x%08?x", result);
-                break;
-            }
-        }
-
-        LPWSTR deviceID{nullptr};
-        result = device->GetId(&deviceID);
+        // Get the default render endpoint for opening it as a loopback device.
+        HRESULT result = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, device);
         if (FAILED(result))
         {
-            poco_error_f1(_logger, "IMMDevice::GetId failed: result = 0x%08?x", result);
-        }
-        else
-        {
-            _currentCaptureDeviceId = UnicodeToString(deviceID);
-        }
-
-        if (!OpenAudioDevice(device, useLoopback))
-        {
-            _isCapturing = false;
-        }
-
-        poco_information_f3(_logger, "Audio device opened: %s (channels: %hu, loopback: %b)", deviceName, _channels, useLoopback);
-
-        while (_isCapturing && !_restartCapturing)
-        {
-            try
+            poco_error_f1(_logger, "IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: result = 0x%08?x", result);
+            if (*device)
             {
-                _fillBufferEvent.tryWait(500);
+                (*device)->Release();
+                *device = nullptr;
             }
-            catch (Poco::TimeoutException& ex)
-            {
-                poco_debug(_logger, "FillBuffer event timeout, proceeding to flush buffer or abort.");
-            }
+            return false;
+        }
 
-            if (!_isCapturing)
+        deviceName = _defaultDeviceName;
+    }
+    else
+    {
+        // Get a device by its ID according to the currently selected index.
+        useLoopback = devices.at(_currentAudioDeviceIndex).IsRenderDevice();
+        deviceName = devices.at(_currentAudioDeviceIndex).FriendlyName();
+        HRESULT result = enumerator->GetDevice(devices.at(_currentAudioDeviceIndex).DeviceId(), device);
+
+        if (FAILED(result))
+        {
+            poco_error_f1(_logger, "IMMDeviceEnumerator::GetDevice failed: result = 0x%08?x", result);
+            if (*device)
             {
+                (*device)->Release();
+                *device = nullptr;
+            }
+            return false;
+        }
+    }
+
+    LPWSTR deviceID{nullptr};
+    HRESULT result = (*device)->GetId(&deviceID);
+    if (FAILED(result))
+    {
+        poco_error_f1(_logger, "IMMDevice::GetId failed: result = 0x%08?x", result);
+    }
+    else
+    {
+        _currentCaptureDeviceId = UnicodeToString(deviceID);
+    }
+
+    if (!OpenAudioDevice(*device, useLoopback))
+    {
+        _isCapturing = false;
+        if (*device)
+        {
+            CloseAudioDevice(*device);
+            *device = nullptr;
+        }
+        return false;
+    }
+
+    poco_information_f3(_logger, "Audio device opened: %s (channels: %hu, loopback: %b)", deviceName, _channels, useLoopback);
+    return true;
+}
+
+void AudioCaptureImpl::PerformAudioCapture()
+{
+    while (_isCapturing && !_restartCapturing)
+    {
+        try
+        {
+            _fillBufferEvent.tryWait(500);
+        }
+        catch (Poco::TimeoutException& ex)
+        {
+            poco_debug(_logger, "FillBuffer event timeout, proceeding to flush buffer or abort.");
+        }
+
+        if (!_isCapturing)
+        {
+            break;
+        }
+
+        UINT32 packetLength;
+
+        _audioCaptureClient->GetNextPacketSize(&packetLength);
+        while (packetLength != 0)
+        {
+            BYTE* data;
+            UINT32 framesAvailable;
+            DWORD flags;
+
+            HRESULT result = _audioCaptureClient->GetBuffer(&data, &framesAvailable, &flags, nullptr, nullptr);
+            if (FAILED(result))
+            {
+                poco_error_f1(_logger, "IAudioCaptureClient::GetBuffer failed: result = 0x%08?x", result);
+                _isCapturing = false;
                 break;
             }
 
-            UINT32 packetLength;
-
-            _audioCaptureClient->GetNextPacketSize(&packetLength);
-            while (packetLength != 0)
+            if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
             {
-                BYTE* data;
-                UINT32 framesAvailable;
-                DWORD flags;
-
-                result = _audioCaptureClient->GetBuffer(&data, &framesAvailable, &flags, nullptr, nullptr);
-                if (FAILED(result))
-                {
-                    poco_error_f1(_logger, "IAudioCaptureClient::GetBuffer failed: result = 0x%08?x", result);
-                    _isCapturing = false;
-                    break;
-                }
-
-                if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
-                {
-                    data = nullptr;
-                }
-
-                poco_trace_f1(_logger, "Audio frames available for capturing: %u", data ? framesAvailable : 0);
-
-                if (framesAvailable > 0 && data != nullptr)
-                {
-                    projectm_pcm_add_float(_projectMHandle, reinterpret_cast<float*>(data), framesAvailable, static_cast<projectm_channels>(_channels));
-                }
-
-                _audioCaptureClient->ReleaseBuffer(framesAvailable);
-
-                _audioCaptureClient->GetNextPacketSize(&packetLength);
+                data = nullptr;
             }
 
-            _bufferFilledEvent.set();
+            poco_trace_f1(_logger, "Audio frames available for capturing: %u", data ? framesAvailable : 0);
+
+            if (framesAvailable > 0 && data != nullptr)
+            {
+                projectm_pcm_add_float(_projectMHandle, reinterpret_cast<float*>(data), framesAvailable, static_cast<projectm_channels>(_channels));
+            }
+
+            _audioCaptureClient->ReleaseBuffer(framesAvailable);
+
+            _audioCaptureClient->GetNextPacketSize(&packetLength);
         }
 
-        CloseAudioDevice(device);
+        _bufferFilledEvent.set();
+    }
+}
 
-        poco_debug(_logger, "Audio device closed.");
-    } while (_restartCapturing);
+void AudioCaptureImpl::CloseDeviceAndCleanup(IMMDevice* device)
+{
+    CloseAudioDevice(device);
+}
 
+void AudioCaptureImpl::CleanupCaptureThread(IMMDeviceEnumerator* enumerator)
+{
     poco_trace(_logger, "Unregistering device callbacks.");
     enumerator->UnregisterEndpointNotificationCallback(this);
     poco_trace(_logger, "Releasing audio device enumerator.");
@@ -470,8 +599,6 @@ void AudioCaptureImpl::CaptureThread()
     poco_trace(_logger, "Audio device enumerator released.");
 
     CoUninitialize();
-
-    poco_debug(_logger, "Audio capture thread exiting.");
 }
 
 IMMDeviceEnumerator* AudioCaptureImpl::GetDeviceEnumerator() const

@@ -67,6 +67,27 @@ protected:
     void MouseUpEvent(const SDL_MouseButtonEvent& event);
 
     /**
+     * @brief Handles SDL file drop events.
+     * @param event The file drop event
+     */
+    void DropFileEvent(const SDL_DropEvent& event);
+
+    /**
+     * @brief Checks if drop file path references a valid preset.
+     */
+    bool IsValidPresetFile(const std::string& path) const;
+
+    /**
+     * @brief Handles a dropped non-directory preset file.
+     */
+    void HandleDroppedPresetFile(const std::string& path, bool skipToDropped, int index);
+
+    /**
+     * @brief Handles a dropped directory.
+     */
+    void HandleDroppedDirectory(const std::string& path, bool skipToDropped, bool droppedFolderOverride, int& index);
+
+    /**
      * @brief Handler for quit notifications.
      * @param notification The received notification.
      */

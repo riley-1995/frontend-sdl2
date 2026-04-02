@@ -183,7 +183,13 @@ protected:
      * @brief Opens the given audio device in capture or loopback mode.
      *
      * This method will activate the device, create a capture client and also check the
-     * sample format to be valid.
+     * sample format to be valid. The function is composed of four auditable stages:
+     * 1. SelectAndActivateDevice() - Device activation
+     * 2. NegotiateAudioFormat() - Format validation
+     * 3. InitializeAudioClient() - Client initialization
+     * 4. SetupCaptureAndStream() - Capture client and stream startup
+     *
+     * All partial failures trigger consistent cleanup via a unified cleanup path.
      *
      * @param device A pointer to the MMDevice interface to activate.
      * @param useLoopback If true, the device is opened in loopback mode.
@@ -192,7 +198,38 @@ protected:
     bool OpenAudioDevice(IMMDevice* device, bool useLoopback);
 
     /**
+     * @brief Stage 1: Activate device and retrieve IAudioClient interface.
+     * @param device The audio device to activate.
+     * @return S_OK on success, HRESULT error code on failure.
+     */
+    HRESULT SelectAndActivateDevice(IMMDevice* device);
+
+    /**
+     * @brief Stage 2: Retrieve and validate audio format is IEEE float.
+     * @return Channel count on success, -1 on failure.
+     */
+    int NegotiateAudioFormat();
+
+    /**
+     * @brief Stage 3: Initialize IAudioClient with negotiated format and device period.
+     * @param channels Channel count from format negotiation.
+     * @param useLoopback If true, initialize in loopback mode.
+     * @return S_OK on success, HRESULT error code on failure.
+     */
+    HRESULT InitializeAudioClient(int channels, bool useLoopback);
+
+    /**
+     * @brief Stage 4: Setup capture client interface and start audio stream.
+     * @return S_OK on success, HRESULT error code on failure.
+     */
+    HRESULT SetupCaptureAndStream();
+
+    /**
      * @brief Closes and releases the given audio device and associated interfaces.
+     * 
+     * Safely handles null pointers and performs defensive null checks before
+     * dereferencing any COM interfaces.
+     *
      * @param device The audio device to close and release.
      */
     void CloseAudioDevice(IMMDevice* device);
@@ -208,6 +245,49 @@ protected:
      * been affected by such an event. The thread itself is only restarted if the user switches audio devices manually.
      */
     void CaptureThread();
+
+    /**
+     * @brief Initializes the capture thread environment.
+     *
+     * Sets up COM and creates the device enumerator with notification callbacks.
+     *
+     * @return Pointer to the initialized device enumerator, or nullptr on failure.
+     */
+    IMMDeviceEnumerator* InitializeCaptureThread();
+
+    /**
+     * @brief Selects and opens the appropriate audio device for capture.
+     *
+     * @param enumerator The device enumerator to use for device selection.
+     * @param[out] device Pointer to store the selected device.
+     * @param[out] deviceName String to store the selected device name.
+     * @param[out] useLoopback Boolean to store whether loopback mode should be used.
+     * @return True if device was successfully selected and opened, false otherwise.
+     */
+    bool SelectAndOpenDevice(IMMDeviceEnumerator* enumerator, IMMDevice** device, std::string& deviceName, bool& useLoopback);
+
+    /**
+     * @brief Performs the main audio capture loop.
+     *
+     * Waits for buffer fill events and processes audio packets.
+     */
+    void PerformAudioCapture();
+
+    /**
+     * @brief Closes the current audio device.
+     *
+     * @param device The device to close.
+     */
+    void CloseDeviceAndCleanup(IMMDevice* device);
+
+    /**
+     * @brief Cleans up the capture thread environment.
+     *
+     * Unregisters callbacks, releases enumerator, and uninitializes COM.
+     *
+     * @param enumerator The device enumerator to clean up.
+     */
+    void CleanupCaptureThread(IMMDeviceEnumerator* enumerator);
 
     /**
      * @brief Creates a new MMDeviceEnumerator interface.

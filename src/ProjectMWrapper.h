@@ -105,6 +105,39 @@ private:
      */
     void OnConfigurationPropertyRemoved(const std::string& key);
 
+    // === Initialization stages - called in sequence by initialize() ===
+
+    /**
+     * @brief Stage 1: Load configuration views and preset/texture paths.
+     */
+    void InitializeConfiguration(Poco::Util::Application& app);
+
+    /**
+     * @brief Stage 2: Create and validate projectM instance.
+     */
+    void InitializeProjectMCore(Poco::Util::Application& app);
+
+    /**
+     * @brief Stage 3: Configure all projectM parameters (fps, mesh, aspect correction, etc.).
+     */
+    void ConfigureProjectMSettings();
+
+    /**
+     * @brief Stage 4: Create playlist, populate from paths, and sort.
+     */
+    void InitializePlaylist();
+
+    /**
+     * @brief Stage 5: Register event callbacks, observers, and configuration listeners.
+     */
+    void RegisterObserversAndCallbacks();
+
+    // Temporary storage for initialization data shared between stages
+    int _initCanvasWidth{0};
+    int _initCanvasHeight{0};
+    std::vector<std::string> _initPresetPaths;
+    std::vector<std::string> _initTexturePaths;
+
     Poco::AutoPtr<Poco::Util::AbstractConfiguration> _userConfig; //!< View of the "projectM" configuration subkey in the "user" configuration.
     Poco::AutoPtr<Poco::Util::AbstractConfiguration> _projectMConfigView; //!< View of the "projectM" configuration subkey in the "effective" configuration.
 
