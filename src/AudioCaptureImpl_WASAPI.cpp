@@ -28,6 +28,14 @@ class WASAPIDeviceCatalog
             }
         }
 
+        // Non-copyable: prevent double-release of COM pointer
+        WASAPIDeviceCatalog(const WASAPIDeviceCatalog&) = delete;
+        WASAPIDeviceCatalog& operator=(const WASAPIDeviceCatalog&) = delete;
+
+        // Non-movable: enforce single ownership of enumerator
+        WASAPIDeviceCatalog(WASAPIDeviceCatalog&&) = delete;
+        WASAPIDeviceCatalog& operator=(WASAPIDeviceCatalog&&) = delete;
+
         std::vector<AudioCaptureImpl::AudioDevice> DeviceList() const
         {
             if (_enumerator == nullptr)
