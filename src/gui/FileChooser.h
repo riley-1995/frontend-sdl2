@@ -122,6 +122,15 @@ protected:
     bool PopulateFileList();
 
     /**
+     * @brief Determines whether a directory entry should be shown in the file list.
+     *
+     * @param path The path of the directory entry.
+     * @param isDirectory True if the entry is a directory.
+     * @return True if the entry should be included in the current file list.
+     */
+    bool AcceptEntry(const Poco::Path& path, bool isDirectory) const;
+
+    /**
      * @brief Changes the currently displayed directory to the given path.
      *
      * The path must not necessarily exist or be accessible. A message is shown to the user if something is wrong.
