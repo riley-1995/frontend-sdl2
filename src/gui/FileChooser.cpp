@@ -330,27 +330,42 @@ void FileChooser::ChangeDirectory(Poco::Path newDirectory)
             poco_debug_f2(_logger, "Skipping inaccessible path %s: %s", directoryIterator.path().toString(), ex.displayText());
         }
 
-        if ((!isHidden || _showHidden))
+        if ((!isHidden || _showHidden) && AcceptEntry(directoryIterator.path(), isDirectory))
         {
-            if ((_mode != Mode::Directory && _extensions.empty()) || isDirectory)
-            {
-                _currentFileList.push_back(*directoryIterator);
-            }
-            else if (_mode != Mode::Directory)
-            {
-                auto fileExtension = directoryIterator.path().getExtension();
-                for (const auto& extension : _extensions)
-                {
-                    if (Poco::icompare(directoryIterator.path().getExtension(), extension) != 0)
-                    {
-                        _currentFileList.push_back(*directoryIterator);
-                    }
-                }
-            }
+            _currentFileList.push_back(*directoryIterator);
         }
 
         ++directoryIterator;
     }
+}
+
+bool FileChooser::AcceptEntry(const Poco::Path& path, bool isDirectory) const
+{
+    if (isDirectory)
+    {
+        return true;
+    }
+
+    if (_mode == Mode::Directory)
+    {
+        return false;
+    }
+
+    if (_extensions.empty())
+    {
+        return true;
+    }
+
+    auto fileExtension = path.getExtension();
+    for (const auto& extension : _extensions)
+    {
+        if (Poco::icompare(fileExtension, extension) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void FileChooser::UpdateListSelection(int index, bool isSelected)
