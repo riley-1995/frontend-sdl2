@@ -8,6 +8,50 @@
 #include <mmdeviceapi.h>
 #include <objbase.h>
 
+// Helper that centralizes WASAPI enumerator acquisition, device list creation,
+// and cleanup for the AudioCaptureImpl WASAPI backend.
+class WASAPIDeviceCatalog
+{
+    public:
+        explicit WASAPIDeviceCatalog(const AudioCaptureImpl& audioCaptureImpl)
+            : _audioCaptureImpl(audioCaptureImpl)
+            , _enumerator(audioCaptureImpl.GetDeviceEnumerator())
+        {
+        }
+
+        ~WASAPIDeviceCatalog()
+        {
+            // Release the COM enumerator automatically when this object goes out of scope.
+            if (_enumerator)
+            {
+                _enumerator->Release();
+            }
+        }
+
+        // Non-copyable: prevent double-release of COM pointer
+        WASAPIDeviceCatalog(const WASAPIDeviceCatalog&) = delete;
+        WASAPIDeviceCatalog& operator=(const WASAPIDeviceCatalog&) = delete;
+
+        // Non-movable: enforce single ownership of enumerator
+        WASAPIDeviceCatalog(WASAPIDeviceCatalog&&) = delete;
+        WASAPIDeviceCatalog& operator=(WASAPIDeviceCatalog&&) = delete;
+
+        std::vector<AudioCaptureImpl::AudioDevice> DeviceList() const
+        {
+            if (_enumerator == nullptr)
+            {
+                return {};
+            }
+
+            // Delegate actual device list construction to the single source of truth.
+            return _audioCaptureImpl.GetAudioDeviceList(_enumerator);
+        }
+
+    private:
+        const AudioCaptureImpl& _audioCaptureImpl;
+        IMMDeviceEnumerator* _enumerator{nullptr};
+};
+
 AudioCaptureImpl::AudioCaptureImpl()
     : _captureThread(this, &AudioCaptureImpl::CaptureThread)
 {
@@ -24,9 +68,8 @@ std::map<int, std::string> AudioCaptureImpl::AudioDeviceList()
     std::map<int, std::string> deviceList{
         {-1, _defaultDeviceName}};
 
-    IMMDeviceEnumerator* enumerator{GetDeviceEnumerator()};
-    auto captureDevices{GetAudioDeviceList(enumerator)};
-    enumerator->Release();
+    WASAPIDeviceCatalog deviceCatalog(*this);
+    auto captureDevices = deviceCatalog.DeviceList();
 
     uint32_t index{0};
     for (const auto& device : captureDevices)
@@ -67,9 +110,8 @@ void AudioCaptureImpl::NextAudioDevice()
 {
     StopRecording();
 
-    IMMDeviceEnumerator* enumerator{GetDeviceEnumerator()};
-    auto captureDevices{GetAudioDeviceList(enumerator)};
-    enumerator->Release();
+    WASAPIDeviceCatalog deviceCatalog(*this);
+    auto captureDevices = deviceCatalog.DeviceList();
 
     // Will wrap around to loopback capture device (-1).
     int nextAudioDeviceId = ((_currentAudioDeviceIndex + 2) % (static_cast<int>(captureDevices.size()) + 1)) - 1;
@@ -79,9 +121,8 @@ void AudioCaptureImpl::NextAudioDevice()
 
 void AudioCaptureImpl::AudioDeviceIndex(int index)
 {
-    IMMDeviceEnumerator* enumerator{GetDeviceEnumerator()};
-    auto captureDevices{GetAudioDeviceList(enumerator)};
-    enumerator->Release();
+    WASAPIDeviceCatalog deviceCatalog(*this);
+    auto captureDevices = deviceCatalog.DeviceList();
 
     if (index >= -1 && index < static_cast<int>(captureDevices.size()))
     {
@@ -103,9 +144,8 @@ std::string AudioCaptureImpl::AudioDeviceName() const
         return "System Default Audio Device";
     }
 
-    IMMDeviceEnumerator* enumerator{GetDeviceEnumerator()};
-    auto captureDevices{GetAudioDeviceList(enumerator)};
-    enumerator->Release();
+    WASAPIDeviceCatalog deviceCatalog(*this);
+    auto captureDevices = deviceCatalog.DeviceList();
 
     if (captureDevices.empty() || _currentAudioDeviceIndex >= static_cast<int>(captureDevices.size()))
     {
@@ -629,9 +669,8 @@ HRESULT AudioCaptureImpl::OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNe
     // Recalculate current device index and restart only if not default.
     if (_currentAudioDeviceIndex >= 0)
     {
-        IMMDeviceEnumerator* enumerator{GetDeviceEnumerator()};
-        auto captureDevices{GetAudioDeviceList(enumerator)};
-        enumerator->Release();
+        WASAPIDeviceCatalog deviceCatalog(*this);
+        auto captureDevices = deviceCatalog.DeviceList();
 
         for (int index = 0; index < captureDevices.size(); ++index)
         {

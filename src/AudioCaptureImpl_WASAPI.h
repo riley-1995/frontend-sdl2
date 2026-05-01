@@ -177,6 +177,8 @@ protected:
      * @param enumerator The enumerator interface to use.
      * @return A vector of AudioDevice entries, each representing an available audio device.
      */
+    friend class WASAPIDeviceCatalog;
+
     std::vector<AudioDevice> GetAudioDeviceList(IMMDeviceEnumerator* enumerator) const;
 
     /**
