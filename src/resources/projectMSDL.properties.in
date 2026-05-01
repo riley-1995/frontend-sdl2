@@ -17,6 +17,10 @@ window.monitor = 0
 #             Does not change the current resolution.
 # - exclusive: Sets the resolution to window.fullscreen.width/height and runs in exclusive mode,
 #              like a game.
+# Legacy keys from older configs are migrated on startup to improve codebase consistency:
+# window.fullscreen.exclusive -> window.fullscreen.exclusiveMode
+# fullscreen.width -> window.fullscreen.width
+# fullscreen.height -> window.fullscreen.height
 window.fullscreen.exclusiveMode = false
 
 # Only used if fullscreen mode is "exclusive"

@@ -58,6 +58,7 @@ target_link_libraries(projectMSDL_testcorelib
     SDL2::SDL2
     Poco::Util
     Poco::Foundation
+    ProjectMSDL-Config
     ProjectMSDL-GUI
     ProjectMSDL-Notifications
     libprojectM::playlist
@@ -118,6 +119,7 @@ target_link_libraries(projectMSDL_testcorelib_norenderloop
     SDL2::SDL2
     Poco::Util
     Poco::Foundation
+    ProjectMSDL-Config
     ProjectMSDL-GUI
     ProjectMSDL-Notifications
     libprojectM::playlist

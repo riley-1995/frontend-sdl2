@@ -101,6 +101,7 @@ can also create a user configuration file in your user's home directory. Dependi
 - macOS: `~/Library/Preferences/projectM/projectMSDL.properties`
 
 You can copy the [config file template](src/resources/projectMSDL.properties.in) there and change anything in `@@`.
+Any legacy configuration keys from older configs are migrated to canonical key names on startup.
 
 Depending on the build system, you'll find the projectM executable in `cmake-build/src/`, or a subdirectory with the
 name of your build type (`Release`, `Debug` and so on).

@@ -76,10 +76,10 @@ void SDLRenderingWindow::Fullscreen()
 {
     SDL_GetWindowSize(_renderingWindow, &_lastWindowWidth, &_lastWindowHeight);
     SDL_ShowCursor(false);
-    if (_config->getBool("fullscreen.exclusiveMode", false))
+    if (_config->getBool("window.fullscreen.exclusiveMode", false))
     {
-        int fullscreenWidth = _config->getInt("fullscreen.width", 0);
-        int fullscreenHeight = _config->getInt("fullscreen.height", 0);
+        int fullscreenWidth = _config->getInt("window.fullscreen.width", 0);
+        int fullscreenHeight = _config->getInt("window.fullscreen.height", 0);
         if (fullscreenWidth > 0 && fullscreenHeight > 0)
         {
             SDL_RestoreWindow(_renderingWindow);

@@ -1,4 +1,5 @@
 add_subdirectory(notifications)
+add_subdirectory(config)
 add_subdirectory(gui)
 
 find_package(OpenGL REQUIRED)
@@ -90,6 +91,7 @@ endif()
 
 target_link_libraries(projectMSDL
         PRIVATE
+        ProjectMSDL-Config
         ProjectMSDL-GUI
         ProjectMSDL-Notifications
         libprojectM::playlist

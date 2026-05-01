@@ -8,6 +8,7 @@
 #include "ProjectMWrapper.h"
 #include "RenderLoop.h"
 #include "SDLRenderingWindow.h"
+#include "config/ConfigMigration.h"
 #include "gui/ProjectMGUI.h"
 
 #include <Poco/Environment.h>
@@ -96,6 +97,7 @@ void ProjectMSDLApplication::initialize(Poco::Util::Application& self)
             Poco::File(userConfigurationFile).createFile();
         }
         _userConfiguration->load(userConfigurationFile.toString());
+        ConfigMigration::ApplyUserConfigKeyMigrations(*_userConfiguration, logger());
         config().add(_userConfiguration, PRIO_DEFAULT - 10);
 
         // Store the configuration file path
