@@ -4,6 +4,8 @@
 #include "ProjectMSDLApplication.h"
 #include "ProjectMWrapper.h"
 
+#include "config/ConfigurationFacade.h"
+
 #include "gui/ProjectMGUI.h"
 #include "gui/SystemBrowser.h"
 
@@ -107,6 +109,7 @@ void MainMenu::DrawOptionsMenu()
     }
 
     auto& app = ProjectMSDLApplication::instance();
+    ConfigurationFacade configurationFacade(app.config(), *app.UserConfiguration());
 
     DrawAudioCaptureDeviceMenu();
 
@@ -116,9 +119,9 @@ void MainMenu::DrawOptionsMenu()
     {
         ToggleUserConfig("projectM.displayToasts", true);
     }
-    if (ImGui::MenuItem("Display Preset Name in Window Title", "", app.config().getBool("window.displayPresetNameInTitle", true)))
+    if (ImGui::MenuItem("Display Preset Name in Window Title", "", configurationFacade.window().displayPresetNameInTitle()))
     {
-        ToggleUserConfig("window.displayPresetNameInTitle", true);
+        configurationFacade.window().toggleDisplayPresetNameInTitle();
         _notificationCenter.postNotification(new UpdateWindowTitleNotification);
     }
 
