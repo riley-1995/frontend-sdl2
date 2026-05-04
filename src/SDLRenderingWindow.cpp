@@ -2,6 +2,7 @@
 
 #include "ProjectMSDLApplication.h"
 #include "ProjectMWrapper.h"
+#include "config/SettingsConfigKeys.h"
 
 #include <Poco/Delegate.h>
 #include <Poco/NotificationCenter.h>
@@ -23,7 +24,8 @@ void SDLRenderingWindow::initialize(Poco::Util::Application& app)
 {
     auto& projectMSDLApp = dynamic_cast<ProjectMSDLApplication&>(app);
     _userConfig = projectMSDLApp.UserConfiguration();
-    _config = app.config().createView("window");
+    // Use the facade as the single read path so window settings stay key-consistent.
+    _configurationFacade = std::make_unique<ConfigurationFacade>(app.config(), *_userConfig);
 
     if (!_renderingWindow)
     {
@@ -76,10 +78,10 @@ void SDLRenderingWindow::Fullscreen()
 {
     SDL_GetWindowSize(_renderingWindow, &_lastWindowWidth, &_lastWindowHeight);
     SDL_ShowCursor(false);
-    if (_config->getBool("window.fullscreen.exclusiveMode", false))
+    if (_configurationFacade->window().fullscreenExclusiveMode())
     {
-        int fullscreenWidth = _config->getInt("window.fullscreen.width", 0);
-        int fullscreenHeight = _config->getInt("window.fullscreen.height", 0);
+        int fullscreenWidth = _configurationFacade->window().fullscreenWidth();
+        int fullscreenHeight = _configurationFacade->window().fullscreenHeight();
         if (fullscreenWidth > 0 && fullscreenHeight > 0)
         {
             SDL_RestoreWindow(_renderingWindow);
@@ -114,7 +116,7 @@ void SDLRenderingWindow::Fullscreen()
 void SDLRenderingWindow::Windowed()
 {
     SDL_SetWindowFullscreen(_renderingWindow, 0);
-    SDL_SetWindowBordered(_renderingWindow, _config->getBool("borderless", false) ? SDL_FALSE : SDL_TRUE);
+    SDL_SetWindowBordered(_renderingWindow, _configurationFacade->window().borderless() ? SDL_FALSE : SDL_TRUE);
     if (_lastWindowWidth > 0 && _lastWindowHeight > 0)
     {
         SDL_SetWindowSize(_renderingWindow, _lastWindowWidth, _lastWindowHeight);
@@ -198,11 +200,11 @@ void SDLRenderingWindow::CreateSDLWindow()
 {
     SDL_InitSubSystem(SDL_INIT_VIDEO);
 
-    int width{_config->getInt("width", 800)};
-    int height{_config->getInt("height", 600)};
-    int left{_config->getInt("left", 0)};
-    int top{_config->getInt("top", 0)};
-    bool positionOverridden = _config->getBool("overridePosition", false);
+    int width{_configurationFacade->window().width()};
+    int height{_configurationFacade->window().height()};
+    int left{_configurationFacade->window().left()};
+    int top{_configurationFacade->window().top()};
+    bool positionOverridden = _configurationFacade->window().overridePosition();
 
     if (!positionOverridden)
     {
@@ -210,7 +212,7 @@ void SDLRenderingWindow::CreateSDLWindow()
         top = SDL_WINDOWPOS_UNDEFINED;
     }
 
-    auto display = _config->getInt("monitor", 0);
+    auto display = _configurationFacade->window().monitor();
     if (display > 0)
     {
         poco_debug_f1(_logger, "User requested to place window on monitor %?d.", display);
@@ -220,6 +222,7 @@ void SDLRenderingWindow::CreateSDLWindow()
             display = numDisplays;
         }
 
+        // Stored monitor index is 1-based for config UX; SDL display index is 0-based.
         SDL_Rect bounds;
         SDL_GetDisplayBounds(display - 1, &bounds);
 
@@ -282,7 +285,7 @@ void SDLRenderingWindow::CreateSDLWindow()
     poco_debug_f1(_logger, "Initialized GLEW: %s", std::string(reinterpret_cast<const char*>(glewGetString(GLEW_VERSION))));
 #endif
 
-    if (_config->getBool("fullscreen", false))
+    if (_configurationFacade->window().fullscreen())
     {
         Fullscreen();
     }
@@ -391,7 +394,7 @@ void SDLRenderingWindow::UpdateWindowTitle()
 {
     std::string newTitle = "projectM";
 
-    if (_config->getBool("displayPresetNameInTitle", true))
+    if (_configurationFacade->window().displayPresetNameInTitle())
     {
         auto& app = Poco::Util::Application::instance();
         auto& projectMWrapper = app.getSubsystem<ProjectMWrapper>();
@@ -417,13 +420,13 @@ void SDLRenderingWindow::UpdateWindowTitle()
 
 void SDLRenderingWindow::UpdateSwapInterval()
 {
-    if (!_config->getBool("waitForVerticalSync", true))
+    if (!_configurationFacade->window().waitForVerticalSync())
     {
         SDL_GL_SetSwapInterval(0);
         return;
     }
 
-    if (_config->getBool("adaptiveVerticalSync", true))
+    if (_configurationFacade->window().adaptiveVerticalSync())
     {
         if (SDL_GL_SetSwapInterval(-1) == 0)
         {
@@ -446,17 +449,19 @@ void SDLRenderingWindow::OnConfigurationPropertyRemoved(const std::string& key)
         return;
     }
 
-    if (key == "window.waitForVerticalSync" || key == "window.adaptiveVerticalSync")
+    // Re-evaluate dependent runtime state when either VSync control key changes.
+    if (key == SettingsConfigKeys::kConfigWindowWaitForVerticalSync ||
+        key == SettingsConfigKeys::kConfigWindowAdaptiveVerticalSync)
     {
         UpdateSwapInterval();
     }
 
-    if (key == "window.borderless")
+    if (key == SettingsConfigKeys::kConfigWindowBorderless)
     {
-        SDL_SetWindowBordered(_renderingWindow, _config->getBool("borderless", false) ? SDL_FALSE : SDL_TRUE);
+        SDL_SetWindowBordered(_renderingWindow, _configurationFacade->window().borderless() ? SDL_FALSE : SDL_TRUE);
     }
 
-    if (key == "window.displayPresetNameInTitle")
+    if (key == SettingsConfigKeys::kConfigWindowDisplayPresetNameInTitle)
     {
         UpdateWindowTitle();
     }
