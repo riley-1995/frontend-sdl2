@@ -1,6 +1,9 @@
 #pragma once
 
+#include "config/ConfigurationFacade.h"
 #include "notifications/UpdateWindowTitleNotification.h"
+
+#include <memory>
 
 #include <SDL2/SDL.h>
 
@@ -142,7 +145,7 @@ protected:
     void OnConfigurationPropertyRemoved(const std::string& key);
 
     Poco::AutoPtr<Poco::Util::AbstractConfiguration> _userConfig; //!< View of the "projectM" configuration subkey in the "user" configuration.
-    Poco::AutoPtr<Poco::Util::AbstractConfiguration> _config; //!< View of the "window" configuration subkey.
+    std::unique_ptr<ConfigurationFacade> _configurationFacade; //!< Typed access to effective and persisted configuration.
 
     SDL_Window* _renderingWindow{ nullptr }; //!< Pointer to the SDL window used for rendering.
     SDL_GLContext _glContext{ nullptr }; //!< Pointer to the OpenGL context associated with the window.
