@@ -37,7 +37,6 @@ add_library(ProjectMSDL-GUI STATIC
         AudioSettingsTab.h
         ProjectMSettingsTab.cpp
         ProjectMSettingsTab.h
-        SettingsConfigKeys.h
         SettingsUIHelpers.cpp
         SettingsUIHelpers.h
         SettingsWindow.cpp

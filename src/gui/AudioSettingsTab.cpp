@@ -1,7 +1,7 @@
 #include "AudioSettingsTab.h"
 
 #include "AudioCapture.h"
-#include "SettingsConfigKeys.h"
+#include "config/SettingsConfigKeys.h"
 #include "SettingsUIHelpers.h"
 
 #include <imgui.h>

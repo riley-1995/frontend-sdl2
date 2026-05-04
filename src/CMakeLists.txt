@@ -91,8 +91,8 @@ endif()
 
 target_link_libraries(projectMSDL
         PRIVATE
-        ProjectMSDL-Config
         ProjectMSDL-GUI
+        ProjectMSDL-Config
         ProjectMSDL-Notifications
         libprojectM::playlist
         Poco::Util
