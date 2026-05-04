@@ -5,6 +5,7 @@
 class ConfigurationFacade
 {
 public:
+    // Window-scoped settings read from the effective (merged) config and persist into user config.
     class WindowConfigFacade
     {
     public:
@@ -18,10 +19,13 @@ public:
         void toggleDisplayPresetNameInTitle();
 
     private:
+        // Effective config includes defaults plus persisted overrides.
         Poco::Util::AbstractConfiguration& _effectiveConfig;
+        // User config is the writable layer persisted to disk.
         Poco::Util::AbstractConfiguration& _userConfig;
     };
 
+    // Placeholder facade for projectM-scoped settings methods.
     class ProjectMConfigFacade
     {
     public:
@@ -33,6 +37,7 @@ public:
         Poco::Util::AbstractConfiguration& _userConfig;
     };
 
+    // Placeholder facade for audio-scoped settings methods.
     class AudioConfigFacade
     {
     public:
@@ -47,6 +52,7 @@ public:
     ConfigurationFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                         Poco::Util::AbstractConfiguration& userConfig);
 
+    // Accessors expose scoped config APIs and hide string-key usage.
     WindowConfigFacade& window();
 
     ProjectMConfigFacade& projectM();

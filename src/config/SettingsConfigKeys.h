@@ -5,6 +5,7 @@ namespace SettingsConfigKeys
 
 // Canonical config keys are fully-qualified and must match projectMSDL.properties.in.
 
+// projectM configuration keys used for preset sources, playback options, visual timing, and sensitivity.
 constexpr char kConfigProjectMPresetPath[] = "projectM.presetPath";
 constexpr char kConfigProjectMTexturePath[] = "projectM.texturePath";
 constexpr char kConfigProjectMEnableSplash[] = "projectM.enableSplash";
@@ -24,6 +25,7 @@ constexpr char kConfigProjectMFps[] = "projectM.fps";
 constexpr char kConfigProjectMDisplayToasts[] = "projectM.displayToasts";
 constexpr char kConfigProjectMBeatSensitivity[] = "projectM.beatSensitivity";
 
+// Window behavior and placement keys.
 constexpr char kConfigWindowWidth[] = "window.width";
 constexpr char kConfigWindowHeight[] = "window.height";
 constexpr char kConfigWindowLeft[] = "window.left";
@@ -38,9 +40,11 @@ constexpr char kConfigWindowAdaptiveVerticalSync[] = "window.adaptiveVerticalSyn
 constexpr char kConfigWindowDisplayPresetNameInTitle[] = "window.displayPresetNameInTitle";
 constexpr char kConfigWindowUiScale[] = "window.uiScale";
 
+// Fullscreen mode-specific resolution keys.
 constexpr char kConfigFullscreenWidth[] = "window.fullscreen.width";
 constexpr char kConfigFullscreenHeight[] = "window.fullscreen.height";
 
+// Audio/input and app bootstrap keys.
 constexpr char kConfigAudioDevice[] = "audio.device";
 constexpr char kConfigAppUserConfigurationFile[] = "app.UserConfigurationFile";
 

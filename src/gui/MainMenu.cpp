@@ -109,6 +109,7 @@ void MainMenu::DrawOptionsMenu()
     }
 
     auto& app = ProjectMSDLApplication::instance();
+    // Facade keeps menu code focused on intent instead of raw config keys.
     ConfigurationFacade configurationFacade(app.config(), *app.UserConfiguration());
 
     DrawAudioCaptureDeviceMenu();
@@ -121,6 +122,7 @@ void MainMenu::DrawOptionsMenu()
     }
     if (ImGui::MenuItem("Display Preset Name in Window Title", "", configurationFacade.window().displayPresetNameInTitle()))
     {
+        // Writes to user config while reading current state from effective config.
         configurationFacade.window().toggleDisplayPresetNameInTitle();
         _notificationCenter.postNotification(new UpdateWindowTitleNotification);
     }
