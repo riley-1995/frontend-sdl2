@@ -90,6 +90,14 @@ protected:
      */
     static void AudioInputCallback(void* userData, unsigned char* stream, int len);
 
+private:
+    /**
+     * @brief Switches to the specified audio device by stopping the current recording,
+     * updating the device index, and starting recording with the new device.
+     * @param newIndex The index of the new audio device to switch to.
+     */
+    void SwitchToDevice(int newIndex);
+
     projectm* _projectMHandle{nullptr}; //!< Handle if the projectM instance that will receive the audio data.
     int32_t _currentAudioDeviceIndex{-1}; //!< Currently selected audio device index.
     SDL_AudioDeviceID _currentAudioDeviceID{0}; //!< Device ID of the currently opened audio device.
