@@ -362,6 +362,8 @@ HRESULT AudioCaptureImpl::SetupCaptureAndStream()
 
 bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
 {
+    int channels = 0;
+
     // Stage 1: Activate device and get IAudioClient
     HRESULT result = SelectAndActivateDevice(device);
     if (FAILED(result))
@@ -370,7 +372,7 @@ bool AudioCaptureImpl::OpenAudioDevice(IMMDevice* device, bool useLoopback)
     }
 
     // Stage 2: Negotiate audio format
-    int channels = NegotiateAudioFormat();
+    channels = NegotiateAudioFormat();
     if (channels <= 0)
     {
         goto cleanup;
