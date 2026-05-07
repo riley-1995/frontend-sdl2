@@ -3,6 +3,9 @@
 #include "ProjectMSDLApplication.h"
 #include "SDLRenderingWindow.h"
 
+#include "config/ConfigurationFacade.h"
+#include "config/SettingsConfigKeys.h"
+
 #include "notifications/DisplayToastNotification.h"
 
 #include <Poco/Delegate.h>
@@ -42,6 +45,7 @@ void ProjectMWrapper::initialize(Poco::Util::Application& app)
 void ProjectMWrapper::InitializeConfiguration(Poco::Util::Application& app)
 {
     auto& projectMSDLApp = dynamic_cast<ProjectMSDLApplication&>(app);
+    _effectiveConfig = &projectMSDLApp.config();
     _projectMConfigView = projectMSDLApp.config().createView("projectM");
     _userConfig = projectMSDLApp.UserConfiguration();
     poco_information_f1(_logger, "Events enabled: %?d", _projectMConfigView->eventsEnabled());
@@ -67,6 +71,8 @@ void ProjectMWrapper::InitializeProjectMCore(Poco::Util::Application& app)
 
 void ProjectMWrapper::ConfigureProjectMSettings()
 {
+    ConfigurationFacade configurationFacade(*_effectiveConfig, *_userConfig);
+
     // Set window dimensions
     projectm_set_window_size(_projectM, _initCanvasWidth, _initCanvasHeight);
 
@@ -84,7 +90,7 @@ void ProjectMWrapper::ConfigureProjectMSettings()
 
     // Configure aspect and preset behavior
     projectm_set_aspect_correction(_projectM, _projectMConfigView->getBool("aspectCorrectionEnabled", true));
-    projectm_set_preset_locked(_projectM, _projectMConfigView->getBool("presetLocked", false));
+    projectm_set_preset_locked(_projectM, configurationFacade.projectM().presetLocked());
 
     // Configure preset display settings
     projectm_set_preset_duration(_projectM, _projectMConfigView->getDouble("displayDuration", 30.0));
@@ -92,7 +98,7 @@ void ProjectMWrapper::ConfigureProjectMSettings()
     projectm_set_hard_cut_enabled(_projectM, _projectMConfigView->getBool("hardCutsEnabled", false));
     projectm_set_hard_cut_duration(_projectM, _projectMConfigView->getDouble("hardCutDuration", 20.0));
     projectm_set_hard_cut_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("hardCutSensitivity", 1.0)));
-    projectm_set_beat_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("beatSensitivity", 1.0)));
+    projectm_set_beat_sensitivity(_projectM, static_cast<float>(configurationFacade.projectM().beatSensitivity()));
 
     // Configure texture paths if available
     if (!_initTexturePaths.empty())
@@ -109,6 +115,8 @@ void ProjectMWrapper::ConfigureProjectMSettings()
 
 void ProjectMWrapper::InitializePlaylist()
 {
+    ConfigurationFacade configurationFacade(*_effectiveConfig, *_userConfig);
+
     // Create playlist manager
     _playlist = projectm_playlist_create(_projectM);
     if (!_playlist)
@@ -118,7 +126,7 @@ void ProjectMWrapper::InitializePlaylist()
     }
 
     // Configure shuffle mode
-    projectm_playlist_set_shuffle(_playlist, _projectMConfigView->getBool("shuffleEnabled", true));
+    projectm_playlist_set_shuffle(_playlist, configurationFacade.projectM().shuffleEnabled());
 
     // Populate playlist from preset paths
     for (const auto& presetPath : _initPresetPaths)
@@ -211,9 +219,11 @@ void ProjectMWrapper::RenderFrame() const
 
 void ProjectMWrapper::DisplayInitialPreset()
 {
+    ConfigurationFacade configurationFacade(*_effectiveConfig, *_userConfig);
+
     if (!_projectMConfigView->getBool("enableSplash", true))
     {
-        if (_projectMConfigView->getBool("shuffleEnabled", true))
+        if (configurationFacade.projectM().shuffleEnabled())
         {
             projectm_playlist_play_next(_playlist, true);
         }
@@ -264,6 +274,7 @@ void ProjectMWrapper::PresetSwitchedEvent(bool isHardCut, unsigned int index, vo
 
 void ProjectMWrapper::PlaybackControlNotificationHandler(const Poco::AutoPtr<PlaybackControlNotification>& notification)
 {
+    ConfigurationFacade configurationFacade(*_effectiveConfig, *_userConfig);
     bool shuffleEnabled = projectm_playlist_get_shuffle(_playlist);
 
     switch (notification->ControlAction())
@@ -292,11 +303,11 @@ void ProjectMWrapper::PlaybackControlNotificationHandler(const Poco::AutoPtr<Pla
         }
 
         case PlaybackControlNotification::Action::ToggleShuffle:
-            _userConfig->setBool("projectM.shuffleEnabled", !shuffleEnabled);
+            configurationFacade.projectM().setShuffleEnabled(!shuffleEnabled);
             break;
 
         case PlaybackControlNotification::Action::TogglePresetLocked: {
-            _userConfig->setBool("projectM.presetLocked", !projectm_get_preset_locked(_projectM));
+            configurationFacade.projectM().setPresetLocked(!projectm_get_preset_locked(_projectM));
             break;
         }
     }
@@ -337,48 +348,55 @@ void ProjectMWrapper::OnConfigurationPropertyRemoved(const std::string& key)
         return;
     }
 
-    if (key == "projectM.presetLocked")
+    ConfigurationFacade configurationFacade(*_effectiveConfig, *_userConfig);
+
+    if (key == SettingsConfigKeys::kConfigProjectMPresetLocked)
     {
-        projectm_set_preset_locked(_projectM, _projectMConfigView->getBool("presetLocked", false));
+        projectm_set_preset_locked(_projectM, configurationFacade.projectM().presetLocked());
         Poco::NotificationCenter::defaultCenter().postNotification(new UpdateWindowTitleNotification);
     }
 
-    if (key == "projectM.shuffleEnabled")
+    if (key == SettingsConfigKeys::kConfigProjectMShuffleEnabled)
     {
-        projectm_playlist_set_shuffle(_playlist, _projectMConfigView->getBool("shuffleEnabled", true));
+        projectm_playlist_set_shuffle(_playlist, configurationFacade.projectM().shuffleEnabled());
     }
 
-    if (key == "projectM.aspectCorrectionEnabled")
+    if (key == SettingsConfigKeys::kConfigProjectMBeatSensitivity)
+    {
+        projectm_set_beat_sensitivity(_projectM, static_cast<float>(configurationFacade.projectM().beatSensitivity()));
+    }
+
+    if (key == SettingsConfigKeys::kConfigProjectMAspectCorrectionEnabled)
     {
         projectm_set_aspect_correction(_projectM, _projectMConfigView->getBool("aspectCorrectionEnabled", true));
     }
 
-    if (key == "projectM.displayDuration")
+    if (key == SettingsConfigKeys::kConfigProjectMDisplayDuration)
     {
         projectm_set_preset_duration(_projectM, _projectMConfigView->getDouble("displayDuration", 30.0));
     }
 
-    if (key == "projectM.transitionDuration")
+    if (key == SettingsConfigKeys::kConfigProjectMTransitionDuration)
     {
         projectm_set_soft_cut_duration(_projectM, _projectMConfigView->getDouble("transitionDuration", 3.0));
     }
 
-    if (key == "projectM.hardCutsEnabled")
+    if (key == SettingsConfigKeys::kConfigProjectMHardCutsEnabled)
     {
         projectm_set_aspect_correction(_projectM, _projectMConfigView->getBool("hardCutsEnabled", false));
     }
 
-    if (key == "projectM.hardCutDuration")
+    if (key == SettingsConfigKeys::kConfigProjectMHardCutDuration)
     {
         projectm_set_hard_cut_duration(_projectM, _projectMConfigView->getDouble("hardCutDuration", 20.0));
     }
 
-    if (key == "projectM.hardCutSensitivity")
+    if (key == SettingsConfigKeys::kConfigProjectMHardCutSensitivity)
     {
         projectm_set_hard_cut_sensitivity(_projectM, static_cast<float>(_projectMConfigView->getDouble("hardCutSensitivity", 1.0)));
     }
 
-    if (key == "projectM.meshX" || key == "projectM.meshY")
+    if (key == SettingsConfigKeys::kConfigProjectMMeshX || key == SettingsConfigKeys::kConfigProjectMMeshY)
     {
         projectm_set_mesh_size(_projectM, _projectMConfigView->getUInt64("meshX", 48), _projectMConfigView->getUInt64("meshY", 32));
     }

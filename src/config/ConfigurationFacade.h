@@ -138,6 +138,69 @@ public:
         ProjectMConfigFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                              Poco::Util::AbstractConfiguration& userConfig);
 
+        /**
+         * @brief Returns whether the current preset is locked.
+         * @return True if preset locking is enabled.
+         */
+        bool presetLocked() const;
+
+        /**
+         * @brief Sets preset lock state.
+         * @param enabled True to lock the current preset.
+         */
+        void setPresetLocked(bool enabled);
+
+        /**
+         * @brief Toggles preset lock state.
+         */
+        void togglePresetLocked();
+
+        /**
+         * @brief Returns whether shuffle is enabled for preset playback.
+         * @return True if shuffle mode is enabled.
+         */
+        bool shuffleEnabled() const;
+
+        /**
+         * @brief Sets shuffle state.
+         * @param enabled True to enable shuffle mode.
+         */
+        void setShuffleEnabled(bool enabled);
+
+        /**
+         * @brief Toggles shuffle state.
+         */
+        void toggleShuffleEnabled();
+
+        /**
+         * @brief Returns whether toast messages are displayed.
+         * @return True if toast display is enabled.
+         */
+        bool displayToasts() const;
+
+        /**
+         * @brief Sets whether toast messages are displayed.
+         * @param enabled True to enable toast display.
+         */
+        void setDisplayToasts(bool enabled);
+
+        /**
+         * @brief Toggles toast message display.
+         */
+        void toggleDisplayToasts();
+
+        /**
+         * @brief Returns the configured beat sensitivity value.
+         * @return Beat sensitivity scalar.
+         */
+        double beatSensitivity() const;
+
+        /**
+         * @brief Sets beat sensitivity.
+         * @param value Beat sensitivity scalar.
+         */
+        void setBeatSensitivity(double value);
+
     private:
         Poco::Util::AbstractConfiguration& _effectiveConfig;
         Poco::Util::AbstractConfiguration& _userConfig;
