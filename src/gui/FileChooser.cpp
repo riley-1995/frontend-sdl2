@@ -189,32 +189,52 @@ void FileChooser::DrawNavButtons()
 {
     ImGui::Checkbox("Show hidden", &_showHidden);
 
-    // Root path buttons first
+    // Build navigation commands
+    std::vector<NavCommand> navCommands;
+
+    // Up button
+    navCommands.push_back({
+        "Up",
+        [this]() {
+            ChangeDirectory(_currentDir.parent());
+            poco_debug_f1(_logger, "Going one dir up: %s", _currentDir.toString());
+        }
+    });
+
+    // Home button
+    navCommands.push_back({
+        "Home",
+        [this]() {
+            ChangeDirectory(Poco::Path::home());
+            poco_debug_f1(_logger, "Going to user's home dir: %s", _currentDir.toString());
+        }
+    });
+
+    // Root path buttons
     std::vector<std::string> roots;
     Poco::Path::listRoots(roots);
-
-    if (ImGui::Button("Up"))
-    {
-        ChangeDirectory(_currentDir.parent());
-        poco_debug_f1(_logger, "Going one dir up: %s", _currentDir.toString());
-    }
-
-    ImGui::SameLine();
-
-    if (ImGui::Button("Home"))
-    {
-        ChangeDirectory(Poco::Path::home());
-        poco_debug_f1(_logger, "Going to user's home dir: %s", _currentDir.toString());
-    }
-
     for (const auto& root : roots)
     {
-        ImGui::SameLine();
+        navCommands.push_back({
+            root,
+            [this, root]() {
+                ChangeDirectory(root);
+                poco_debug_f1(_logger, "Changing root/drive to: %s", _currentDir.toString());
+            }
+        });
+    }
 
-        if (ImGui::Button(root.c_str()))
+    // Render buttons from commands
+    for (size_t i = 0; i < navCommands.size(); ++i)
+    {
+        if (i > 0)
         {
-            ChangeDirectory(root);
-            poco_debug_f1(_logger, "Changing root/drive to: %s", _currentDir.toString());
+            ImGui::SameLine();
+        }
+
+        if (ImGui::Button(navCommands[i].label.c_str()))
+        {
+            navCommands[i].action();
         }
     }
 }
