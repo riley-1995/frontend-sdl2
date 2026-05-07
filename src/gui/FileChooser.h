@@ -4,7 +4,10 @@
 #include <Poco/Path.h>
 #include <Poco/Logger.h>
 
+#include <functional>
 #include <set>
+#include <string>
+#include <vector>
 
 /**
  * @brief File/preset chooser dialog
@@ -183,4 +186,12 @@ private:
      * @return The status of the directory.
      */
     DirectoryStatus CheckDirectoryStatus(const Poco::Path& path);
+
+    /**
+     * @brief Navigation command structure for decoupling UI from behavior.
+     */
+    struct NavCommand {
+        std::string label;
+        std::function<void()> action;
+    };
 };
