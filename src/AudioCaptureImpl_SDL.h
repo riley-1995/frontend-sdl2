@@ -99,4 +99,12 @@ protected:
     uint32_t _requestedSampleCount{44100U / 60U}; //!< Requested audio buffer size. Determines how often SDL will call AudioInputCallback() with new data, and how much data is delivered on each call.
 
     Poco::Logger& _logger{Poco::Logger::get("AudioCapture.SDL")}; //!< The class logger.
+
+private:
+    /**
+     * @brief Switches to the specified audio device by stopping the current recording,
+     * updating the device index, and starting recording with the new device.
+     * @param newIndex The index of the new audio device to switch to.
+     */
+    void SwitchToDevice(int newIndex);
 };

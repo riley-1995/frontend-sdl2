@@ -77,23 +77,28 @@ void AudioCaptureImpl::StopRecording()
     }
 }
 
+void AudioCaptureImpl::SwitchToDevice(int newIndex)
+{
+    // Stop current recording session
+    StopRecording();
+    
+    // StartRecording() will update _currentAudioDeviceIndex to newIndex
+    StartRecording(_projectMHandle, newIndex);
+}
+
 void AudioCaptureImpl::NextAudioDevice()
 {
-    StopRecording();
-
     // Will wrap around to default capture device (-1).
     int nextAudioDeviceId = ((_currentAudioDeviceIndex + 2) % (SDL_GetNumAudioDevices(true) + 1)) - 1;
 
-    StartRecording(_projectMHandle, nextAudioDeviceId);
+    SwitchToDevice(nextAudioDeviceId);
 }
 
 void AudioCaptureImpl::AudioDeviceIndex(int index)
 {
     if (index >= -1 && index < SDL_GetNumAudioDevices(true))
     {
-        StopRecording();
-        _currentAudioDeviceIndex = index;
-        StartRecording(_projectMHandle, index);
+        SwitchToDevice(index);
     }
 }
 
