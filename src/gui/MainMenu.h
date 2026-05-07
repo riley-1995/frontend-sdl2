@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 class ProjectMGUI;
 class ProjectMWrapper;
 class AudioCapture;
@@ -35,6 +33,5 @@ private:
     void DrawHelpMenu();
 
     void PostPlaybackAction(int action);
-    void ToggleUserConfig(const std::string& key, bool defaultValue) const;
     void OpenExternalUrl(const char* url) const;
 };

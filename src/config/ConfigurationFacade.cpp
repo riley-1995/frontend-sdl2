@@ -21,8 +21,13 @@ constexpr int kWindowFullscreenHeightDefault = 0;
 constexpr bool kWindowWaitForVerticalSyncDefault = true;
 constexpr bool kWindowAdaptiveVerticalSyncDefault = true;
 constexpr bool kDisplayPresetNameInTitleDefault = true;
+constexpr bool kProjectMPresetLockedDefault = false;
+constexpr bool kProjectMShuffleEnabledDefault = true;
+constexpr bool kProjectMDisplayToastsDefault = true;
+constexpr double kProjectMBeatSensitivityDefault = 1.0;
 } // namespace
 
+// WindowConfigFacade implementation
 ConfigurationFacade::WindowConfigFacade::WindowConfigFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                                                             Poco::Util::AbstractConfiguration& userConfig)
     : _effectiveConfig(effectiveConfig)
@@ -133,6 +138,7 @@ void ConfigurationFacade::WindowConfigFacade::toggleDisplayPresetNameInTitle()
     setDisplayPresetNameInTitle(!displayPresetNameInTitle());
 }
 
+// ProjectMConfigFacade implementation
 ConfigurationFacade::ProjectMConfigFacade::ProjectMConfigFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                                                                 Poco::Util::AbstractConfiguration& userConfig)
     : _effectiveConfig(effectiveConfig)
@@ -140,6 +146,77 @@ ConfigurationFacade::ProjectMConfigFacade::ProjectMConfigFacade(Poco::Util::Abst
 {
 }
 
+bool ConfigurationFacade::ProjectMConfigFacade::presetLocked() const
+{
+    // Read whether preset locking is enabled for playback.
+    return _effectiveConfig.getBool(SettingsConfigKeys::kConfigProjectMPresetLocked,
+                                    kProjectMPresetLockedDefault);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::setPresetLocked(bool enabled)
+{
+    // Persist explicit preset lock choice in the user configuration layer.
+    _userConfig.setBool(SettingsConfigKeys::kConfigProjectMPresetLocked, enabled);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::togglePresetLocked()
+{
+    // Toggle based on the resolved value currently visible to the UI.
+    setPresetLocked(!presetLocked());
+}
+
+bool ConfigurationFacade::ProjectMConfigFacade::shuffleEnabled() const
+{
+    // Read whether shuffle mode is enabled for preset playback.
+    return _effectiveConfig.getBool(SettingsConfigKeys::kConfigProjectMShuffleEnabled,
+                                    kProjectMShuffleEnabledDefault);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::setShuffleEnabled(bool enabled)
+{
+    // Persist explicit shuffle mode choice in the user configuration layer.
+    _userConfig.setBool(SettingsConfigKeys::kConfigProjectMShuffleEnabled, enabled);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::toggleShuffleEnabled()
+{
+    // Toggle based on the resolved value currently visible to the UI.
+    setShuffleEnabled(!shuffleEnabled());
+}
+
+bool ConfigurationFacade::ProjectMConfigFacade::displayToasts() const
+{
+    // Read whether on-screen toast messages should be displayed.
+    return _effectiveConfig.getBool(SettingsConfigKeys::kConfigProjectMDisplayToasts,
+                                    kProjectMDisplayToastsDefault);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::setDisplayToasts(bool enabled)
+{
+    // Persist explicit toast display choice in the user configuration layer.
+    _userConfig.setBool(SettingsConfigKeys::kConfigProjectMDisplayToasts, enabled);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::toggleDisplayToasts()
+{
+    // Toggle based on the resolved value currently visible to the UI.
+    setDisplayToasts(!displayToasts());
+}
+
+double ConfigurationFacade::ProjectMConfigFacade::beatSensitivity() const
+{
+    // Read the configured beat sensitivity scalar used by projectM.
+    return _effectiveConfig.getDouble(SettingsConfigKeys::kConfigProjectMBeatSensitivity,
+                                      kProjectMBeatSensitivityDefault);
+}
+
+void ConfigurationFacade::ProjectMConfigFacade::setBeatSensitivity(double value)
+{
+    // Persist explicit beat sensitivity choice in the user configuration layer.
+    _userConfig.setDouble(SettingsConfigKeys::kConfigProjectMBeatSensitivity, value);
+}
+
+// AudioConfigFacade implementation
 ConfigurationFacade::AudioConfigFacade::AudioConfigFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                                                           Poco::Util::AbstractConfiguration& userConfig)
     : _effectiveConfig(effectiveConfig)
@@ -147,6 +224,8 @@ ConfigurationFacade::AudioConfigFacade::AudioConfigFacade(Poco::Util::AbstractCo
 {
 }
 
+
+// ConfigurationFacade implementation
 ConfigurationFacade::ConfigurationFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                                          Poco::Util::AbstractConfiguration& userConfig)
     // Each scoped facade shares the same read/write configuration sources.

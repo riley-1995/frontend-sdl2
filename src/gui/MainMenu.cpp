@@ -62,6 +62,7 @@ void MainMenu::DrawPlaybackMenu()
     if (!ImGui::BeginMenu("Playback")) return;
 
     auto& app = ProjectMSDLApplication::instance();
+    ConfigurationFacade configurationFacade(app.config(), *app.UserConfiguration());
 
     if (ImGui::MenuItem("Play Next Preset", "n")) 
     {
@@ -82,11 +83,11 @@ void MainMenu::DrawPlaybackMenu()
 
     ImGui::Separator();
 
-    if (ImGui::MenuItem("Lock Preset", "Spacebar", app.config().getBool("projectM.presetLocked", false)))
+    if (ImGui::MenuItem("Lock Preset", "Spacebar", configurationFacade.projectM().presetLocked()))
     {
         PostPlaybackAction(static_cast<int>(PlaybackControlNotification::Action::TogglePresetLocked));
     }
-    if (ImGui::MenuItem("Enable Shuffle", "y", app.config().getBool("projectM.shuffleEnabled", true)))
+    if (ImGui::MenuItem("Enable Shuffle", "y", configurationFacade.projectM().shuffleEnabled()))
     {
         PostPlaybackAction(static_cast<int>(PlaybackControlNotification::Action::ToggleShuffle));
     }
@@ -116,9 +117,9 @@ void MainMenu::DrawOptionsMenu()
 
     ImGui::Separator();
 
-    if (ImGui::MenuItem("Display Toast Messages", "", app.config().getBool("projectM.displayToasts", true)))
+    if (ImGui::MenuItem("Display Toast Messages", "", configurationFacade.projectM().displayToasts()))
     {
-        ToggleUserConfig("projectM.displayToasts", true);
+        configurationFacade.projectM().toggleDisplayToasts();
     }
     if (ImGui::MenuItem("Display Preset Name in Window Title", "", configurationFacade.window().displayPresetNameInTitle()))
     {
@@ -133,7 +134,7 @@ void MainMenu::DrawOptionsMenu()
     if (ImGui::SliderFloat("Beat Sensitivity", &beatSensitivity, 0.0f, 2.0f))
     {
         projectm_set_beat_sensitivity(_projectMWrapper.ProjectM(), beatSensitivity);
-        app.UserConfiguration()->setDouble("projectM.beatSensitivity", beatSensitivity);
+        configurationFacade.projectM().setBeatSensitivity(beatSensitivity);
     }
 
     ImGui::EndMenu();
@@ -201,12 +202,6 @@ void MainMenu::PostPlaybackAction(int action)
 {
     _notificationCenter.postNotification(
         new PlaybackControlNotification(static_cast<PlaybackControlNotification::Action>(action)));
-}
-
-void MainMenu::ToggleUserConfig(const std::string& key, bool defaultValue) const 
-{
-    auto& app = ProjectMSDLApplication::instance();
-    app.UserConfiguration()->setBool(key, !app.config().getBool(key, defaultValue));
 }
 
 void MainMenu::OpenExternalUrl(const char* url) const 

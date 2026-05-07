@@ -138,6 +138,7 @@ private:
     std::vector<std::string> _initPresetPaths;
     std::vector<std::string> _initTexturePaths;
 
+    Poco::Util::AbstractConfiguration* _effectiveConfig{nullptr}; //!< Effective merged configuration root used for facade reads.
     Poco::AutoPtr<Poco::Util::AbstractConfiguration> _userConfig; //!< View of the "projectM" configuration subkey in the "user" configuration.
     Poco::AutoPtr<Poco::Util::AbstractConfiguration> _projectMConfigView; //!< View of the "projectM" configuration subkey in the "effective" configuration.
 
