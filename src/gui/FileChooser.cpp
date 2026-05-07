@@ -123,13 +123,12 @@ bool FileChooser::Draw()
             }
             else
             {
-                Poco::File pathCheck(_currentDir);
-
-                if (!pathCheck.exists())
+                DirectoryStatus status = CheckDirectoryStatus(_currentDir);
+                if (status == DirectoryStatus::DoesNotExist)
                 {
                     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Directory does not exist");
                 }
-                else if (!pathCheck.canRead())
+                else if (status == DirectoryStatus::CannotAccess)
                 {
                     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Directory cannot be accessed");
                 }
@@ -305,8 +304,8 @@ void FileChooser::ChangeDirectory(Poco::Path newDirectory)
         return;
     }
 
-    Poco::File pathCheck(_currentDir);
-    if (!pathCheck.exists() || !pathCheck.canRead())
+    DirectoryStatus status = CheckDirectoryStatus(_currentDir);
+    if (status != DirectoryStatus::Valid)
     {
         return;
     }
@@ -366,6 +365,20 @@ bool FileChooser::AcceptEntry(const Poco::Path& path, bool isDirectory) const
     }
 
     return false;
+}
+
+FileChooser::DirectoryStatus FileChooser::CheckDirectoryStatus(const Poco::Path& path)
+{
+    Poco::File pathCheck(path);
+    if (!pathCheck.exists())
+    {
+        return DirectoryStatus::DoesNotExist;
+    }
+    if (!pathCheck.canRead())
+    {
+        return DirectoryStatus::CannotAccess;
+    }
+    return DirectoryStatus::Valid;
 }
 
 void FileChooser::UpdateListSelection(int index, bool isSelected)

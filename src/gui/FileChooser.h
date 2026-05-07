@@ -169,4 +169,17 @@ protected:
 
 
     Poco::Logger& _logger{ Poco::Logger::get("GuiFileChooserWindow") };
-};
+
+private:
+    enum class DirectoryStatus {
+        Valid,
+        DoesNotExist,
+        CannotAccess
+    };
+
+    /**
+     * @brief Checks the status of a directory path.
+     * @param path The directory path to check.
+     * @return The status of the directory.
+     */
+    DirectoryStatus CheckDirectoryStatus(const Poco::Path& path);
