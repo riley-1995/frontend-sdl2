@@ -1,9 +1,10 @@
 #pragma once
 
+#include "config/ConfigurationFacade.h"
+
 #include <Poco/Logger.h>
 
 #include <Poco/Util/Subsystem.h>
-#include <Poco/Util/AbstractConfiguration.h>
 
 #include <memory>
 
@@ -63,8 +64,10 @@ protected:
     /**
      * @brief Prints a list of available audio devices on standard output if requested by the user.
      * @param deviceList The list of available audio devices.
+     * @param audioConfig The audio configuration facade used to check the listDevices flag.
      */
-    void PrintDeviceList(const AudioDeviceMap&  deviceList) const;
+    void PrintDeviceList(const AudioDeviceMap& deviceList,
+                         const ConfigurationFacade::AudioConfigFacade& audioConfig) const;
 
     /**
      * @brief Returns the index of the initial audio device that should be used.
@@ -76,11 +79,11 @@ protected:
      * implementation.
      *
      * @param deviceList The list of available audio devices.
+     * @param audioConfig The audio configuration facade used to read device index and name.
      * @return A device index from -1 to the number of available devices minus one.
      */
-    int GetInitialAudioDeviceIndex(const AudioDeviceMap& deviceList);
-
-    Poco::AutoPtr<Poco::Util::AbstractConfiguration> _config; //!< View of the "audio" configuration subkey.
+    int GetInitialAudioDeviceIndex(const AudioDeviceMap& deviceList,
+                                   const ConfigurationFacade::AudioConfigFacade& audioConfig);
 
     AudioCaptureImpl* _impl{}; //!< The OS-specific capture implementation.
 

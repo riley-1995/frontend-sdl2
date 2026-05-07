@@ -207,7 +207,11 @@ public:
     };
 
     /**
-     * @brief Placeholder facade for audio-scoped settings.
+     * @brief Facade for audio-scoped configuration access.
+     *
+     * Reads values from the effective (merged) configuration and persists writable values
+     * to the user configuration layer. Provides a single typed API for all audio settings
+     * used by capture, settings UI, and CLI, replacing scattered raw key lookups.
      */
     class AudioConfigFacade
     {
@@ -220,8 +224,48 @@ public:
         AudioConfigFacade(Poco::Util::AbstractConfiguration& effectiveConfig,
                           Poco::Util::AbstractConfiguration& userConfig);
 
+        /**
+         * @brief Returns whether available audio devices should be listed at startup.
+         * @return True if the device list should be logged on startup.
+         */
+        bool listDevices() const;
+
+        /**
+         * @brief Returns the configured audio device as a numeric index.
+         *
+         * Reads audio.device as an integer. Throws Poco::SyntaxException if the
+         * configured value is a non-numeric string — callers should catch and fall
+         * back to deviceName() in that case.
+         *
+         * @return Device index, or -1 if unset (default capture device).
+         */
+        int deviceIndex() const;
+
+        /**
+         * @brief Returns the configured audio device as a string name.
+         *
+         * Used as a fallback when the audio.device value is a non-numeric name.
+         *
+         * @return Device name string, or empty string if unset.
+         */
+        std::string deviceName() const;
+
+        /**
+         * @brief Persists an audio device selection by numeric index.
+         * @param index Device index as reported by the capture API, or -1 for default.
+         */
+        void setDevice(int index);
+
+        /**
+         * @brief Persists an audio device selection by name.
+         * @param name Full device name string as reported by the capture API.
+         */
+        void setDevice(const std::string& name);
+
     private:
+        // Effective config includes defaults plus persisted overrides.
         Poco::Util::AbstractConfiguration& _effectiveConfig;
+        // User config is the writable layer persisted to disk.
         Poco::Util::AbstractConfiguration& _userConfig;
     };
 
