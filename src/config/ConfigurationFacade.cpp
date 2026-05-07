@@ -25,6 +25,9 @@ constexpr bool kProjectMPresetLockedDefault = false;
 constexpr bool kProjectMShuffleEnabledDefault = true;
 constexpr bool kProjectMDisplayToastsDefault = true;
 constexpr double kProjectMBeatSensitivityDefault = 1.0;
+constexpr bool kAudioListDevicesDefault = false;
+constexpr int kAudioDeviceIndexDefault = -1;
+constexpr char kAudioDeviceNameDefault[] = "";
 } // namespace
 
 // WindowConfigFacade implementation
@@ -224,6 +227,37 @@ ConfigurationFacade::AudioConfigFacade::AudioConfigFacade(Poco::Util::AbstractCo
 {
 }
 
+bool ConfigurationFacade::AudioConfigFacade::listDevices() const
+{
+    // Read whether available devices should be logged to the console at startup.
+    // Set to true via the --listAudioDevices CLI flag.
+    return _effectiveConfig.getBool(SettingsConfigKeys::kConfigAudioListDevices, kAudioListDevicesDefault);
+}
+
+int ConfigurationFacade::AudioConfigFacade::deviceIndex() const
+{
+    // Read audio.device as a numeric index. Throws Poco::SyntaxException if the value
+    // is a non-numeric string — callers should catch and fall back to deviceName().
+    return _effectiveConfig.getInt(SettingsConfigKeys::kConfigAudioDevice, kAudioDeviceIndexDefault);
+}
+
+std::string ConfigurationFacade::AudioConfigFacade::deviceName() const
+{
+    // Read audio.device as a string name, used when the value is not a plain integer.
+    return _effectiveConfig.getString(SettingsConfigKeys::kConfigAudioDevice, kAudioDeviceNameDefault);
+}
+
+void ConfigurationFacade::AudioConfigFacade::setDevice(int index)
+{
+    // Persist an integer device index to the user configuration layer.
+    _userConfig.setInt(SettingsConfigKeys::kConfigAudioDevice, index);
+}
+
+void ConfigurationFacade::AudioConfigFacade::setDevice(const std::string& name)
+{
+    // Persist a device name string to the user configuration layer.
+    _userConfig.setString(SettingsConfigKeys::kConfigAudioDevice, name);
+}
 
 // ConfigurationFacade implementation
 ConfigurationFacade::ConfigurationFacade(Poco::Util::AbstractConfiguration& effectiveConfig,

@@ -17,7 +17,9 @@ const char* AudioCapture::name() const
 
 void AudioCapture::initialize(Poco::Util::Application& app)
 {
-    _config = app.config().createView("audio");
+    // Construct a facade over the full effective config. AudioCapture only reads
+    // audio settings, so both layers point to the same merged configuration source.
+    ConfigurationFacade::AudioConfigFacade audioConfig(app.config(), app.config());
 
     auto& projectMWrapper = app.getSubsystem<ProjectMWrapper>();
 
@@ -27,9 +29,9 @@ void AudioCapture::initialize(Poco::Util::Application& app)
     }
 
     auto deviceList = _impl->AudioDeviceList();
-    int audioDeviceIndex = GetInitialAudioDeviceIndex(deviceList);
+    int audioDeviceIndex = GetInitialAudioDeviceIndex(deviceList, audioConfig);
 
-    PrintDeviceList(deviceList);
+    PrintDeviceList(deviceList, audioConfig);
 
     _impl->StartRecording(projectMWrapper.ProjectM(), audioDeviceIndex);
 }
@@ -102,9 +104,10 @@ void AudioCapture::FillBuffer()
     _impl->FillBuffer();
 }
 
-void AudioCapture::PrintDeviceList(const AudioDeviceMap& deviceList) const
+void AudioCapture::PrintDeviceList(const AudioDeviceMap& deviceList,
+                                    const ConfigurationFacade::AudioConfigFacade& audioConfig) const
 {
-    if (_config->getBool("listDevices", false))
+    if (audioConfig.listDevices())
     {
         poco_information(_logger, "Available audio capturing devices:");
         for (const auto& device : deviceList)
@@ -114,14 +117,15 @@ void AudioCapture::PrintDeviceList(const AudioDeviceMap& deviceList) const
     }
 }
 
-int AudioCapture::GetInitialAudioDeviceIndex(const AudioDeviceMap& deviceList)
+int AudioCapture::GetInitialAudioDeviceIndex(const AudioDeviceMap& deviceList,
+                                              const ConfigurationFacade::AudioConfigFacade& audioConfig)
 {
     int audioDeviceIndex{ -1 };
 
     // Check if configured device is a number or string
     try
     {
-        audioDeviceIndex = _config->getInt("device", -1);
+        audioDeviceIndex = audioConfig.deviceIndex();
         if (deviceList.find(audioDeviceIndex) == deviceList.end())
         {
             poco_debug(_logger,
@@ -131,7 +135,7 @@ int AudioCapture::GetInitialAudioDeviceIndex(const AudioDeviceMap& deviceList)
     }
     catch (Poco::SyntaxException& ex)
     {
-        auto audioDeviceName = _config->getString("device", "");
+        auto audioDeviceName = audioConfig.deviceName();
 
         poco_debug_f1(_logger, R"(audio.device is set to non-numerical value. Searching for device name "%s".)",
                       audioDeviceName);

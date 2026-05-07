@@ -9,6 +9,7 @@
 #include "RenderLoop.h"
 #include "SDLRenderingWindow.h"
 #include "config/ConfigMigration.h"
+#include "config/SettingsConfigKeys.h"
 #include "gui/ProjectMGUI.h"
 
 #include <Poco/Environment.h>
@@ -134,7 +135,7 @@ void ProjectMSDLApplication::defineOptions(Poco::Util::OptionSet& options)
                              "Select an audio device to record from initially. Can be the numerical ID or the full device name. "
                              "If the device is not found, the default device will be used instead.",
                              false, "<id or name>", true)
-                          .binding("audio.device", _commandLineOverrides));
+                          .binding(SettingsConfigKeys::kConfigAudioDevice, _commandLineOverrides));
 
     options.addOption(Option("presetPath", "p", "Base directory to search for presets.",
                              false, "<path>", true)
@@ -281,5 +282,5 @@ Built against SDL version: %?d.%?d.%?d (running with %?d.%?d.%?d))",
 
 void ProjectMSDLApplication::ListAudioDevices(POCO_UNUSED const std::string& name, POCO_UNUSED const std::string& value)
 {
-    _commandLineOverrides->setBool("audio.listDevices", true);
+    _commandLineOverrides->setBool(SettingsConfigKeys::kConfigAudioListDevices, true);
 }

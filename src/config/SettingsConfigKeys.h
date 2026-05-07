@@ -46,6 +46,7 @@ constexpr char kConfigFullscreenHeight[] = "window.fullscreen.height";
 
 // Audio/input and app bootstrap keys.
 constexpr char kConfigAudioDevice[] = "audio.device";
+constexpr char kConfigAudioListDevices[] = "audio.listDevices";
 constexpr char kConfigAppUserConfigurationFile[] = "app.UserConfigurationFile";
 
 } // namespace SettingsConfigKeys
