@@ -82,10 +82,7 @@ void AudioCaptureImpl::SwitchToDevice(int newIndex)
     // Stop current recording session
     StopRecording();
     
-    // Update the device index
-    _currentAudioDeviceIndex = newIndex;
-    
-    // Start recording with the new device
+    // StartRecording() will update _currentAudioDeviceIndex to newIndex
     StartRecording(_projectMHandle, newIndex);
 }
 
