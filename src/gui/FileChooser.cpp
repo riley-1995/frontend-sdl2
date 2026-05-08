@@ -389,50 +389,71 @@ bool FileChooser::AcceptEntry(const Poco::Path& path, bool isDirectory) const
 
 void FileChooser::UpdateListSelection(int index, bool isSelected)
 {
-    // Reset selection on simple click
-    if (!ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && !ImGui::IsKeyDown(ImGuiKey_RightCtrl) && !ImGui::IsKeyDown(ImGuiKey_LeftShift) && !ImGui::IsKeyDown(ImGuiKey_RightShift))
+    bool ctrlPressed = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl);
+    bool shiftPressed = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
+
+    if (shiftPressed && _selectedFileIndex >= 0)
     {
-        _selectedFileIndices.clear();
-        _selectedFileIndices.insert(index);
+        // Apply range selection strategy
+        ApplyShiftClickSelection(index);
     }
-
-    // Multiple selection on shift+click
-    if (ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift) && _selectedFileIndex >= 0)
+    else if (ctrlPressed)
     {
-        if (!ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && !ImGui::IsKeyDown(ImGuiKey_RightCtrl))
-        {
-            // Replace selection if ctrl is not pressed
-            _selectedFileIndices.clear();
-        }
-
-        if (!_multiSelect)
-        {
-            _selectedFileIndex = index;
-        }
-
-        for (int selIndex = std::min(_selectedFileIndex, index); selIndex <= std::max(_selectedFileIndex, index); selIndex++)
-        {
-            _selectedFileIndices.insert(selIndex);
-        }
+        // Apply toggle selection strategy
+        ApplyCtrlClickSelection(index, isSelected);
     }
-    // Toggle selection with ctrl+click
-    else if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl))
+    else
     {
-        if (isSelected)
-        {
-            _selectedFileIndices.erase(index);
-        }
-        else
-        {
-            if (!_multiSelect)
-            {
-                _selectedFileIndices.clear();
-            }
-            _selectedFileIndices.insert(index);
-        }
+        // Apply plain click strategy
+        ApplyPlainClickSelection(index);
     }
 
     _selectedFileIndex = index;
+}
+
+void FileChooser::ApplyPlainClickSelection(int index)
+{
+    // Plain click: clear previous selection and select only this index
+    _selectedFileIndices.clear();
+    _selectedFileIndices.insert(index);
+}
+
+void FileChooser::ApplyCtrlClickSelection(int index, bool isSelected)
+{
+    // Ctrl+click: toggle selection of this item
+    if (isSelected)
+    {
+        _selectedFileIndices.erase(index);
+    }
+    else
+    {
+        if (!_multiSelect)
+        {
+            _selectedFileIndices.clear();
+        }
+        _selectedFileIndices.insert(index);
+    }
+}
+
+void FileChooser::ApplyShiftClickSelection(int index)
+{
+    // Shift+click: select range from last selected index to this index
+    if (!ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && !ImGui::IsKeyDown(ImGuiKey_RightCtrl))
+    {
+        // Replace selection if ctrl is not pressed
+        _selectedFileIndices.clear();
+    }
+
+    if (!_multiSelect)
+    {
+        _selectedFileIndex = index;
+    }
+
+    // Select range from last selected to current index
+    for (int selIndex = std::min(_selectedFileIndex, index); selIndex <= std::max(_selectedFileIndex, index); selIndex++)
+    {
+        _selectedFileIndices.insert(selIndex);
+    }
 }
 
 FileChooser::DirectoryStatus FileChooser::CheckDirectoryStatus(const Poco::Path& path)

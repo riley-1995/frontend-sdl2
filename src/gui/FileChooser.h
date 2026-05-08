@@ -157,6 +157,25 @@ protected:
      */
     void UpdateListSelection(int index, bool isSelected);
 
+    /**
+     * @brief Applies plain click selection strategy (replaces current selection).
+     * @param index The index to select.
+     */
+    void ApplyPlainClickSelection(int index);
+
+    /**
+     * @brief Applies Ctrl+click selection strategy (toggle selection).
+     * @param index The index to toggle.
+     * @param isSelected true if the item is currently selected.
+     */
+    void ApplyCtrlClickSelection(int index, bool isSelected);
+
+    /**
+     * @brief Applies Shift+click selection strategy (range selection).
+     * @param index The index to select up to.
+     */
+    void ApplyShiftClickSelection(int index);
+
     std::string _title; //!< The window title.
     std::string _context; //!< Context data for the caller.
     std::vector<std::string> _extensions; //!< File extensions to filter.
